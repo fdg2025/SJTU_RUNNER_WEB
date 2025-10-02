@@ -100,10 +100,11 @@ export async function getAuthorizationTokenAndRules(
   logCb?.(`验证Cookie格式: ${config.COOKIE.substring(0, 50)}...`);
   logCb?.(`Attempting to get Authorization Token from: ${config.UID_URL}`);
   
+  let authToken: string;
+  
   try {
     const uidResponseData = await makeRequest('GET', config.UID_URL, commonAppHeaders, undefined, undefined, logCb);
 
-    let authToken: string;
     if (uidResponseData?.code === 0 && uidResponseData?.data?.uid) {
       authToken = uidResponseData.data.uid;
       logCb?.(`Successfully retrieved Authorization Token: ${authToken}`);
