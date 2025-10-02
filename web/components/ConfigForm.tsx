@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RunningConfig } from '@/lib/utils';
 import { ExternalLink, MapPin, Clock, Settings, User } from 'lucide-react';
+import CookieHelper from './CookieHelper';
 
 interface ConfigFormProps {
   config: RunningConfig;
@@ -12,6 +13,7 @@ interface ConfigFormProps {
 
 export default function ConfigForm({ config, onChange, disabled = false }: ConfigFormProps) {
   const [useCurrentTime, setUseCurrentTime] = useState(config.START_TIME_EPOCH_MS === null);
+  const [showCookieHelper, setShowCookieHelper] = useState(false);
 
   const handleInputChange = (field: keyof RunningConfig, value: string | number | null) => {
     onChange({
@@ -36,6 +38,11 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
     return date.toISOString().slice(0, 16);
   };
 
+  const handleCookieExtracted = (cookie: string) => {
+    handleInputChange('COOKIE', cookie);
+    setShowCookieHelper(false);
+  };
+
   return (
     <div className="space-y-8">
       {/* User Configuration */}
@@ -49,27 +56,44 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">Cookie</label>
-              <a
-                href="https://pe.sjtu.edu.cn/phone/#/indexPortrait"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 transition-colors"
-              >
-                获取Cookie
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCookieHelper(!showCookieHelper)}
+                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
+                  disabled={disabled}
+                >
+                  {showCookieHelper ? '隐藏助手' : '一键获取'}
+                </button>
+                <a
+                  href="https://pe.sjtu.edu.cn/phone/#/indexPortrait"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  手动获取
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
             <input
               type="text"
-              className="input-field"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               placeholder="keepalive=...; JSESSIONID=..."
               value={config.COOKIE}
               onChange={(e) => handleInputChange('COOKIE', e.target.value)}
               disabled={disabled}
             />
             <p className="text-xs text-gray-500 mt-1">
-              从浏览器开发者工具中复制完整的Cookie字符串
+              点击"一键获取"按钮自动获取Cookie，或手动复制粘贴
             </p>
+            
+            {/* Cookie助手 */}
+            {showCookieHelper && (
+              <div className="mt-3">
+                <CookieHelper onCookieExtracted={handleCookieExtracted} />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
