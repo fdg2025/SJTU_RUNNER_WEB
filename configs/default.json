@@ -1,0 +1,16 @@
+{
+    "COOKIE": "keepalive='ukjSa2ugfYYVbLgRl6ilvcBHc8AhWs27L5NKLaSyuhY=; JSESSIONID=708c40a4-3441-4443-a543-92f968e1df44",
+    "USER_ID": "fanxinyi",
+    "START_LATITUDE": 31.031599,
+    "START_LONGITUDE": 121.442938,
+    "END_LATITUDE": 31.0064,
+    "END_LONGITUDE": 121.4951,
+    "RUNNING_SPEED_MPS": 2.5,
+    "INTERVAL_SECONDS": 3,
+    "HOST": "pe.sjtu.edu.cn",
+    "UID_URL": "https://pe.sjtu.edu.cn/sports/my/uid",
+    "MY_DATA_URL": "https://pe.sjtu.edu.cn/sports/my/data",
+    "POINT_RULE_URL": "https://pe.sjtu.edu.cn/api/running/point-rule",
+    "UPLOAD_URL": "https://pe.sjtu.edu.cn/api/running/result/upload",
+    "START_TIME_EPOCH_MS": 1758692678678
+}
