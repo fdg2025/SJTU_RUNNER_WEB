@@ -19,7 +19,11 @@ export default function CookieHelper({ onCookieExtracted }: CookieHelperProps) {
   // 验证Cookie格式是否正确
   const isValidCookie = (cookie: string): boolean => {
     const trimmed = cookie.trim();
-    return trimmed.includes('keepalive=') && trimmed.includes('JSESSIONID=');
+    // 支持标准格式：keepalive=value; JSESSIONID=value
+    // 也支持表格格式：包含keepalive和JSESSIONID行
+    return (trimmed.includes('keepalive=') && trimmed.includes('JSESSIONID=')) ||
+           (trimmed.includes('keepalive') && trimmed.includes('JSESSIONID') && 
+            trimmed.includes('pe.sjtu.edu.cn'));
   };
 
   // 清理和格式化Cookie
@@ -30,13 +34,23 @@ export default function CookieHelper({ onCookieExtracted }: CookieHelperProps) {
     
     for (const line of lines) {
       const trimmed = line.trim();
-      if (trimmed.includes('keepalive=')) {
-        const match = trimmed.match(/keepalive=([^;\s]+)/);
-        if (match) keepalive = match[1];
+      if (trimmed.includes('keepalive')) {
+        // 处理多种格式：keepalive=value 或 keepalive	value
+        const match = trimmed.match(/keepalive[=\t\s]+([^\t\s;]+)/);
+        if (match) {
+          keepalive = match[1];
+          // 去除可能的引号
+          keepalive = keepalive.replace(/^['"]|['"]$/g, '');
+        }
       }
-      if (trimmed.includes('JSESSIONID=')) {
-        const match = trimmed.match(/JSESSIONID=([^;\s]+)/);
-        if (match) jsessionid = match[1];
+      if (trimmed.includes('JSESSIONID')) {
+        // 处理多种格式：JSESSIONID=value 或 JSESSIONID	value
+        const match = trimmed.match(/JSESSIONID[=\t\s]+([^\t\s;]+)/);
+        if (match) {
+          jsessionid = match[1];
+          // 去除可能的引号
+          jsessionid = jsessionid.replace(/^['"]|['"]$/g, '');
+        }
       }
     }
     
@@ -135,13 +149,16 @@ export default function CookieHelper({ onCookieExtracted }: CookieHelperProps) {
 const keepalive = document.cookie.match(/keepalive=([^;]+)/)?.[1];
 const jsessionid = document.cookie.match(/JSESSIONID=([^;]+)/)?.[1];
 if (keepalive && jsessionid) {
-  const cookie = \`keepalive=\${keepalive}; JSESSIONID=\${jsessionid}\`;
+  // 清理可能的引号
+  const cleanKeepalive = keepalive.replace(/^['"]|['"]$/g, '');
+  const cleanJsessionid = jsessionid.replace(/^['"]|['"]$/g, '');
+  const cookie = \`keepalive=\${cleanKeepalive}; JSESSIONID=\${cleanJsessionid}\`;
   console.log('Cookie:', cookie);
   navigator.clipboard.writeText(cookie).then(() => {
-    alert('Cookie已复制到剪贴板！');
+    alert('Cookie已复制到剪贴板！\\n格式: keepalive=' + cleanKeepalive.substring(0,20) + '...; JSESSIONID=' + cleanJsessionid);
   });
 } else {
-  alert('未找到所需的Cookie，请确保已登录');
+  alert('未找到所需的Cookie，请确保已登录\\n当前Cookie: ' + document.cookie);
 }`;
     
     try {
@@ -251,7 +268,7 @@ if (keepalive && jsessionid) {
                 <div className="flex-1">
                   <h5 className="font-medium text-gray-800 mb-1">手动输入</h5>
                   <p className="text-sm text-gray-600 mb-3">
-                    直接粘贴从开发者工具复制的Cookie
+                    支持标准格式或表格格式的Cookie数据
                   </p>
                   <button
                     onClick={() => setShowTempInput(!showTempInput)}
@@ -264,17 +281,22 @@ if (keepalive && jsessionid) {
               
               {showTempInput && (
                 <div className="mt-4 space-y-3">
+                  <div className="text-xs text-gray-500 mb-2">
+                    💡 支持格式：<br/>
+                    • 标准格式：keepalive=xxx; JSESSIONID=xxx<br/>
+                    • 表格格式：直接复制开发者工具中的Cookie表格数据
+                  </div>
                   <textarea
                     value={tempInput}
                     onChange={(e) => setTempInput(e.target.value)}
-                    placeholder="粘贴Cookie内容..."
-                    className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm font-mono"
+                    placeholder="粘贴Cookie内容...&#10;&#10;支持以下格式：&#10;1. keepalive=xxx; JSESSIONID=xxx&#10;2. 开发者工具Cookie表格数据"
+                    className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm font-mono"
                   />
                   <button
                     onClick={handleManualInput}
                     className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
-                    验证Cookie
+                    智能解析Cookie
                   </button>
                 </div>
               )}

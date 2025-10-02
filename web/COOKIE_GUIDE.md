@@ -107,13 +107,41 @@ keepalive=ukjSa2ugfYYVbLgRl6ilvcBHc8AhWs27L5NKLaSyuhY=; JSESSIONID=708c40a4-3441
 - 两个值之间用 `; ` 分隔（分号+空格）
 - 不要包含其他Cookie值
 - 不要有多余的空格或换行
+- 自动去除值前后的引号
+
+### 支持的输入格式
+
+#### 1. 标准格式（推荐）
+```
+keepalive=ukjSa2ugfYYVbLgRl6ilvcBHc8AhWs27L5NKLaSyuhY=; JSESSIONID=5609c8d3-369f-4b29-9add-9ce40a064c69
+```
+
+#### 2. 表格格式（开发者工具复制）
+```
+JSESSIONID	5609c8d3-369f-4b29-9add-9ce40a064c69	pe.sjtu.edu.cn	/	会话	46	✓	✓	Lax			Medium
+keepalive	'ukjSa2ugfYYVbLgRl6ilvcBHc8AhWs27L5NKLaSyuhY=	pe.sjtu.edu.cn	/	会话	54	✓					Medium
+```
+
+#### 3. 混合格式
+```
+keepalive='ukjSa2ugfYYVbLgRl6ilvcBHc8AhWs27L5NKLaSyuhY='
+JSESSIONID=5609c8d3-369f-4b29-9add-9ce40a064c69
+```
 
 ### 常见错误格式
 ```
 ❌ keepalive=xxx JSESSIONID=xxx          # 缺少分号
 ❌ keepalive=xxx;JSESSIONID=xxx          # 分号后缺少空格
 ❌ keepalive=xxx; JSESSIONID=xxx; other=xxx  # 包含多余Cookie
+❌ 'keepalive=xxx'                       # 整体被引号包围
 ```
+
+### 自动处理功能
+工具会自动：
+- 去除值前后的单引号或双引号
+- 识别表格格式并提取正确的值
+- 验证Cookie的完整性
+- 格式化为标准格式
 
 ## 🛠️ 故障排除
 
