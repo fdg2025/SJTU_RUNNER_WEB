@@ -65,36 +65,104 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
     });
 
     try {
-      const authToken = localStorage.getItem('auth-token');
-      const response = await fetch('/api/validate-cookie', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ cookie }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setCookieValidation({
-          isValidating: false,
-          isValid: true,
-          message: `✅ Cookie有效 (UID: ${result.data?.uid || 'Unknown'})`
-        });
-      } else {
+      // 基本格式验证
+      if (!cookie.includes('keepalive=') || !cookie.includes('JSESSIONID=')) {
         setCookieValidation({
           isValidating: false,
           isValid: false,
-          message: `❌ ${result.error || 'Cookie验证失败'}`
+          message: '❌ Cookie格式不正确，必须包含keepalive和JSESSIONID'
+        });
+        return;
+      }
+
+      // 提取Cookie值进行基本验证
+      const keepaliveMatch = cookie.match(/keepalive=([^;]+)/);
+      const jsessionidMatch = cookie.match(/JSESSIONID=([^;]+)/);
+      
+      if (!keepaliveMatch || !jsessionidMatch) {
+        setCookieValidation({
+          isValidating: false,
+          isValid: false,
+          message: '❌ 无法解析Cookie值'
+        });
+        return;
+      }
+
+      const keepaliveValue = keepaliveMatch[1].trim();
+      const jsessionidValue = jsessionidMatch[1].trim();
+
+      // 基本长度和格式检查
+      if (keepaliveValue.length < 10 || jsessionidValue.length < 10) {
+        setCookieValidation({
+          isValidating: false,
+          isValid: false,
+          message: '❌ Cookie值长度不足，可能无效'
+        });
+        return;
+      }
+
+      // 检查是否包含明显的无效字符
+      if (keepaliveValue.includes(' ') || jsessionidValue.includes(' ')) {
+        setCookieValidation({
+          isValidating: false,
+          isValid: false,
+          message: '❌ Cookie值包含无效字符'
+        });
+        return;
+      }
+
+      // 尝试直接验证Cookie（简化版本，不通过API）
+      try {
+        const testUrl = 'https://pe.sjtu.edu.cn/phone/api/uid';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        
+        const response = await fetch(testUrl, {
+          method: 'GET',
+          headers: {
+            "Host": "pe.sjtu.edu.cn",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-S9080 Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/138.0.7204.67 Safari/537.36 TaskCenterApp/3.5.0",
+            "Accept": "application/json, text/plain, */*",
+            "Cookie": cookie
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result?.code === 0 && result?.data?.uid) {
+            setCookieValidation({
+              isValidating: false,
+              isValid: true,
+              message: `✅ Cookie有效 (UID: ${result.data.uid})`
+            });
+            return;
+          }
+        }
+        
+        // 如果直接验证失败，但格式正确，给出警告而不是错误
+        setCookieValidation({
+          isValidating: false,
+          isValid: null,
+          message: '⚠️ Cookie格式正确，但无法验证有效性。请确保已登录SJTU系统'
+        });
+        
+      } catch (fetchError) {
+        // 网络错误或CORS问题，但Cookie格式正确
+        setCookieValidation({
+          isValidating: false,
+          isValid: null,
+          message: '⚠️ Cookie格式正确，但验证受限。建议直接尝试上传'
         });
       }
+      
     } catch (error) {
       setCookieValidation({
         isValidating: false,
         isValid: false,
-        message: '❌ 验证请求失败，请检查网络连接'
+        message: '❌ 验证过程出错，请检查Cookie格式'
       });
     }
   };
@@ -147,7 +215,7 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                 </a>
               </div>
             </div>
-                   <div className="relative">
+                     <div className="relative">
                      <input
                        type="text"
                        className={`w-full px-3 py-2 pr-10 border rounded-lg focus:ring-2 focus:border-transparent transition-all duration-200 ${
@@ -155,6 +223,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                            ? 'border-green-300 focus:ring-green-500' 
                            : cookieValidation.isValid === false 
                            ? 'border-red-300 focus:ring-red-500'
+                           : cookieValidation.isValid === null && cookieValidation.message.includes('⚠️')
+                           ? 'border-yellow-300 focus:ring-yellow-500'
                            : 'border-gray-300 focus:ring-blue-500'
                        }`}
                        placeholder="keepalive=...; JSESSIONID=..."
@@ -177,6 +247,11 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                          <div className="w-4 h-4 text-red-600">✗</div>
                        </div>
                      )}
+                     {cookieValidation.isValid === null && cookieValidation.message.includes('⚠️') && (
+                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                         <div className="w-4 h-4 text-yellow-600">⚠</div>
+                       </div>
+                     )}
                    </div>
                    
                    {cookieValidation.message && (
@@ -185,6 +260,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                          ? 'text-green-600' 
                          : cookieValidation.isValid === false 
                          ? 'text-red-600'
+                         : cookieValidation.message.includes('⚠️')
+                         ? 'text-yellow-600'
                          : 'text-blue-600'
                      }`}>
                        {cookieValidation.message}
