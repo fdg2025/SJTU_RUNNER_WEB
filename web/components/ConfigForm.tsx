@@ -38,9 +38,80 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
     return date.toISOString().slice(0, 16);
   };
 
+  const [cookieValidation, setCookieValidation] = useState<{
+    isValidating: boolean;
+    isValid: boolean | null;
+    message: string;
+  }>({
+    isValidating: false,
+    isValid: null,
+    message: ''
+  });
+
+  const validateCookie = async (cookie: string) => {
+    if (!cookie.trim()) {
+      setCookieValidation({
+        isValidating: false,
+        isValid: null,
+        message: ''
+      });
+      return;
+    }
+
+    setCookieValidation({
+      isValidating: true,
+      isValid: null,
+      message: '验证中...'
+    });
+
+    try {
+      const authToken = localStorage.getItem('auth-token');
+      const response = await fetch('/api/validate-cookie', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ cookie }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setCookieValidation({
+          isValidating: false,
+          isValid: true,
+          message: `✅ Cookie有效 (UID: ${result.data?.uid || 'Unknown'})`
+        });
+      } else {
+        setCookieValidation({
+          isValidating: false,
+          isValid: false,
+          message: `❌ ${result.error || 'Cookie验证失败'}`
+        });
+      }
+    } catch (error) {
+      setCookieValidation({
+        isValidating: false,
+        isValid: false,
+        message: '❌ 验证请求失败，请检查网络连接'
+      });
+    }
+  };
+
+  const handleCookieChange = (cookie: string) => {
+    handleInputChange('COOKIE', cookie);
+    // Debounce validation
+    const timeoutId = setTimeout(() => {
+      validateCookie(cookie);
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  };
+
   const handleCookieExtracted = (cookie: string) => {
     handleInputChange('COOKIE', cookie);
     setShowCookieHelper(false);
+    validateCookie(cookie);
   };
 
   return (
@@ -76,17 +147,53 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                 </a>
               </div>
             </div>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="keepalive=...; JSESSIONID=..."
-              value={config.COOKIE}
-              onChange={(e) => handleInputChange('COOKIE', e.target.value)}
-              disabled={disabled}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              点击"一键获取"按钮自动获取Cookie，或手动复制粘贴
-            </p>
+                   <div className="relative">
+                     <input
+                       type="text"
+                       className={`w-full px-3 py-2 pr-10 border rounded-lg focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                         cookieValidation.isValid === true 
+                           ? 'border-green-300 focus:ring-green-500' 
+                           : cookieValidation.isValid === false 
+                           ? 'border-red-300 focus:ring-red-500'
+                           : 'border-gray-300 focus:ring-blue-500'
+                       }`}
+                       placeholder="keepalive=...; JSESSIONID=..."
+                       value={config.COOKIE}
+                       onChange={(e) => handleCookieChange(e.target.value)}
+                       disabled={disabled}
+                     />
+                     {cookieValidation.isValidating && (
+                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                       </div>
+                     )}
+                     {cookieValidation.isValid === true && (
+                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                         <div className="w-4 h-4 text-green-600">✓</div>
+                       </div>
+                     )}
+                     {cookieValidation.isValid === false && (
+                       <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                         <div className="w-4 h-4 text-red-600">✗</div>
+                       </div>
+                     )}
+                   </div>
+                   
+                   {cookieValidation.message && (
+                     <p className={`text-xs mt-1 ${
+                       cookieValidation.isValid === true 
+                         ? 'text-green-600' 
+                         : cookieValidation.isValid === false 
+                         ? 'text-red-600'
+                         : 'text-blue-600'
+                     }`}>
+                       {cookieValidation.message}
+                     </p>
+                   )}
+                   
+                   <p className="text-xs text-gray-500 mt-1">
+                     点击"一键获取"按钮自动获取Cookie，或手动复制粘贴。系统会自动验证Cookie有效性。
+                   </p>
             
             {/* Cookie助手 */}
             {showCookieHelper && (

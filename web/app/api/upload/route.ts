@@ -10,12 +10,28 @@ export async function POST(request: NextRequest) {
     const authToken = request.cookies.get('auth-token')?.value || 
                      request.headers.get('authorization')?.replace('Bearer ', '');
     
-    if (!authToken || !validateSessionToken(authToken)) {
+    console.log('Upload API - Auth token received:', authToken ? 'Present' : 'Missing');
+    
+    if (!authToken) {
+      console.log('Upload API - No auth token provided');
       return NextResponse.json({
         success: false,
-        error: '未授权访问，请重新登录'
+        error: '未提供认证令牌，请重新登录'
       }, { status: 401 });
     }
+    
+    const isValidToken = validateSessionToken(authToken);
+    console.log('Upload API - Token validation result:', isValidToken);
+    
+    if (!isValidToken) {
+      console.log('Upload API - Invalid token, rejecting request');
+      return NextResponse.json({
+        success: false,
+        error: '认证令牌无效或已过期，请重新登录'
+      }, { status: 401 });
+    }
+    
+    console.log('Upload API - Authentication successful');
 
     const config: RunningConfig = await request.json();
     
