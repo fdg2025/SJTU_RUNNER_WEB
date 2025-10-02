@@ -384,6 +384,16 @@ export default function HomePage() {
                 交我跑官网
                 <ExternalLink className="w-3 h-3" />
               </a>
+              <span>•</span>
+              <a 
+                href="https://github.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
+              >
+                GitHub
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
         </div>
