@@ -6,7 +6,8 @@ import ConfigForm from '@/components/ConfigForm';
 import ConfigManager from '@/components/ConfigManager';
 import ProgressBar from '@/components/ProgressBar';
 import LogOutput from '@/components/LogOutput';
-import { Play, Square, HelpCircle, Github, ExternalLink } from 'lucide-react';
+import LoginForm from '@/components/LoginForm';
+import { Play, Square, HelpCircle, Github, ExternalLink, LogOut } from 'lucide-react';
 
 const DEFAULT_CONFIG: RunningConfig = {
   COOKIE: '',
@@ -37,22 +38,50 @@ export default function HomePage() {
   const [progress, setProgress] = useState({ current: 0, total: 100, message: '待命' });
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showHelp, setShowHelp] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
-  // Load config from localStorage on mount
+  // Check authentication on mount
   useEffect(() => {
-    const savedConfig = localStorage.getItem('sjtu-running-config');
-    if (savedConfig) {
-      try {
-        const parsedConfig = JSON.parse(savedConfig);
-        setConfig({ ...DEFAULT_CONFIG, ...parsedConfig });
-      } catch (error) {
-        console.error('Failed to load saved config:', error);
-      }
+    const token = localStorage.getItem('auth-token');
+    if (token) {
+      setAuthToken(token);
+      setIsAuthenticated(true);
     }
   }, []);
 
+  // Load config from localStorage on mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      const savedConfig = localStorage.getItem('sjtu-running-config');
+      if (savedConfig) {
+        try {
+          const parsedConfig = JSON.parse(savedConfig);
+          setConfig({ ...DEFAULT_CONFIG, ...parsedConfig });
+        } catch (error) {
+          console.error('Failed to load saved config:', error);
+        }
+      }
+    }
+  }, [isAuthenticated]);
+
   const addLog = (message: string, level: string = 'info') => {
     setLogs(prev => [...prev, { message, level, timestamp: Date.now() }]);
+  };
+
+  const handleLogin = (token: string) => {
+    setAuthToken(token);
+    setIsAuthenticated(true);
+    localStorage.setItem('auth-token', token);
+  };
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem('auth-token');
+    localStorage.removeItem('sjtu-running-config');
+    setConfig(DEFAULT_CONFIG);
+    setLogs([]);
   };
 
   const validateConfig = (): string | null => {
@@ -95,11 +124,19 @@ export default function HomePage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify(config),
       });
 
       const result: ApiResponse & { logs?: LogEntry[] } = await response.json();
+
+      // Handle authentication failure
+      if (response.status === 401) {
+        handleLogout();
+        addLog('认证失败，请重新登录', 'error');
+        return;
+      }
 
       // Add server logs to client logs
       if (result.logs) {
@@ -127,6 +164,11 @@ export default function HomePage() {
     addLog('用户手动停止上传', 'warning');
     setProgress({ current: 0, total: 100, message: '已停止' });
   };
+
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    return <LoginForm onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -161,6 +203,13 @@ export default function HomePage() {
                 <Github className="w-4 h-4" />
                 GitHub
               </a>
+              <button
+                onClick={handleLogout}
+                className="bg-red-100 hover:bg-red-200 text-red-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                退出
+              </button>
             </div>
           </div>
         </div>

@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizationTokenAndRules, uploadRunningData, SportsUploaderError } from '@/lib/api-client';
 import { generateRunningDataPayload } from '@/lib/data-generator';
 import { RunningConfig, LogCallback, ProgressCallback } from '@/lib/utils';
+import { validateSessionToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const authToken = request.cookies.get('auth-token')?.value || 
+                     request.headers.get('authorization')?.replace('Bearer ', '');
+    
+    if (!authToken || !validateSessionToken(authToken)) {
+      return NextResponse.json({
+        success: false,
+        error: '未授权访问，请重新登录'
+      }, { status: 401 });
+    }
+
     const config: RunningConfig = await request.json();
     
     // Validate required fields
