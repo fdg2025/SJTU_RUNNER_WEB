@@ -60,7 +60,7 @@ export default function LogOutput({ logs, className = '' }: LogOutputProps) {
 
   if (logs.length === 0) {
     return (
-      <div className={`card ${className}`}>
+      <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${className}`}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">日志输出</h3>
         <div className="text-center text-gray-500 py-8">
           <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -71,7 +71,7 @@ export default function LogOutput({ logs, className = '' }: LogOutputProps) {
   }
 
   return (
-    <div className={`card ${className}`}>
+    <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${className}`}>
       <h3 className="text-lg font-semibold text-gray-900 mb-4">日志输出</h3>
       <div 
         ref={logContainerRef}

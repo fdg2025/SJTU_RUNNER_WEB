@@ -120,12 +120,12 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
   };
 
   return (
-    <div className="card">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-6">配置管理</h2>
       
       {message && (
         <div className={`mb-4 p-3 rounded-lg ${
-          message.type === 'success' ? 'alert-success' : 'alert-error'
+          message.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
         }`}>
           {message.text}
         </div>
@@ -135,7 +135,7 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
         <button
           onClick={handleLoadDefault}
           disabled={disabled}
-          className="btn-secondary flex items-center justify-center gap-2"
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
         >
           <RotateCcw className="w-4 h-4" />
           加载默认配置
@@ -144,7 +144,7 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
         <button
           onClick={handleSaveToLocalStorage}
           disabled={disabled}
-          className="btn-secondary flex items-center justify-center gap-2"
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
         >
           <Save className="w-4 h-4" />
           保存到本地
@@ -153,7 +153,7 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
         <button
           onClick={handleLoadFromLocalStorage}
           disabled={disabled}
-          className="btn-secondary flex items-center justify-center gap-2"
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
         >
           <Upload className="w-4 h-4" />
           从本地加载
@@ -162,7 +162,7 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
         <button
           onClick={handleExportConfig}
           disabled={disabled}
-          className="btn-secondary flex items-center justify-center gap-2"
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
         >
           <Download className="w-4 h-4" />
           导出配置
@@ -170,7 +170,7 @@ export default function ConfigManager({ config, onConfigChange, disabled = false
       </div>
       
       <div className="mt-4">
-        <label className="btn-secondary cursor-pointer inline-flex items-center gap-2">
+        <label className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 cursor-pointer inline-flex items-center gap-2">
           <Upload className="w-4 h-4" />
           导入配置文件
           <input

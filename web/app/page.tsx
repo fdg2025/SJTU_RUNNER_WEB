@@ -147,7 +147,7 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setShowHelp(!showHelp)}
-                className="btn-secondary flex items-center gap-2"
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
               >
                 <HelpCircle className="w-4 h-4" />
                 帮助
@@ -156,7 +156,7 @@ export default function HomePage() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary flex items-center gap-2"
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
               >
                 <Github className="w-4 h-4" />
                 GitHub
@@ -234,7 +234,7 @@ export default function HomePage() {
           {/* Right Column - Controls and Status */}
           <div className="space-y-6">
             {/* Control Panel */}
-            <div className="card">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">控制面板</h2>
               
               <div className="space-y-4">
@@ -267,7 +267,7 @@ export default function HomePage() {
             </div>
 
             {/* Status Info */}
-            <div className="card">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">状态信息</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">

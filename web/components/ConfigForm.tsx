@@ -30,7 +30,7 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
     handleInputChange('START_TIME_EPOCH_MS', timestamp);
   };
 
-  const formatDateTimeLocal = (timestamp: number | null) => {
+  const formatDateTimeLocal = (timestamp: number | null | undefined) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     return date.toISOString().slice(0, 16);
@@ -39,16 +39,16 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
   return (
     <div className="space-y-8">
       {/* User Configuration */}
-      <div className="card">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-6">
           <User className="w-5 h-5 text-primary-600" />
           <h2 className="text-xl font-semibold text-gray-900">用户配置</h2>
         </div>
         
         <div className="space-y-4">
-          <div className="form-group">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="form-label">Cookie</label>
+              <label className="block text-sm font-medium text-gray-700">Cookie</label>
               <a
                 href="https://pe.sjtu.edu.cn/phone/#/indexPortrait"
                 target="_blank"
@@ -72,8 +72,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
             </p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">用户ID</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">用户ID</label>
             <input
               type="text"
               className="input-field"
@@ -87,15 +87,15 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
       </div>
 
       {/* Route Configuration */}
-      <div className="card">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-6">
           <MapPin className="w-5 h-5 text-primary-600" />
           <h2 className="text-xl font-semibold text-gray-900">跑步路线配置</h2>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="form-group">
-            <label className="form-label">起点纬度 (LAT)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">起点纬度 (LAT)</label>
             <input
               type="number"
               step="0.000001"
@@ -107,8 +107,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">起点经度 (LON)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">起点经度 (LON)</label>
             <input
               type="number"
               step="0.000001"
@@ -120,8 +120,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">终点纬度 (LAT)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">终点纬度 (LAT)</label>
             <input
               type="number"
               step="0.000001"
@@ -133,8 +133,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">终点经度 (LON)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">终点经度 (LON)</label>
             <input
               type="number"
               step="0.000001"
@@ -149,15 +149,15 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
       </div>
 
       {/* Running Parameters */}
-      <div className="card">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-6">
           <Settings className="w-5 h-5 text-primary-600" />
           <h2 className="text-xl font-semibold text-gray-900">跑步参数配置</h2>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="form-group">
-            <label className="form-label">跑步速度 (米/秒)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">跑步速度 (米/秒)</label>
             <input
               type="number"
               step="0.1"
@@ -172,8 +172,8 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
             </p>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">轨迹点采样间隔 (秒)</label>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">轨迹点采样间隔 (秒)</label>
             <input
               type="number"
               className="input-field"
@@ -190,7 +190,7 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
       </div>
 
       {/* Time Configuration */}
-      <div className="card">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-6">
           <Clock className="w-5 h-5 text-primary-600" />
           <h2 className="text-xl font-semibold text-gray-900">跑步时间配置</h2>
@@ -212,11 +212,11 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
           </div>
 
           {!useCurrentTime && (
-            <div className="form-group">
-              <label className="form-label">手动设置开始时间</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">手动设置开始时间</label>
               <input
                 type="datetime-local"
-                className="input-field"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 value={formatDateTimeLocal(config.START_TIME_EPOCH_MS)}
                 onChange={(e) => handleDateTimeChange(e.target.value)}
                 disabled={disabled}
