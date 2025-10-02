@@ -242,7 +242,7 @@ export default function HomePage() {
                   {!isUploading ? (
                     <button
                       onClick={handleStartUpload}
-                      className="btn-success flex-1 flex items-center justify-center gap-2"
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1 flex items-center justify-center gap-2"
                     >
                       <Play className="w-4 h-4" />
                       开始上传
@@ -250,7 +250,7 @@ export default function HomePage() {
                   ) : (
                     <button
                       onClick={handleStopUpload}
-                      className="btn-danger flex-1 flex items-center justify-center gap-2"
+                      className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex-1 flex items-center justify-center gap-2"
                     >
                       <Square className="w-4 h-4" />
                       停止上传
