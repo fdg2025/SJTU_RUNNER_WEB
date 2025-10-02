@@ -73,6 +73,11 @@ export async function getAuthorizationTokenAndRules(
   config: RunningConfig,
   logCb?: LogCallback
 ): Promise<[string, any]> {
+  // Validate Cookie format first
+  if (!config.COOKIE || !config.COOKIE.includes('keepalive=') || !config.COOKIE.includes('JSESSIONID=')) {
+    throw new SportsUploaderError('Cookie格式不正确，请确保包含keepalive和JSESSIONID');
+  }
+
   const commonAppHeaders = {
     "Host": config.HOST,
     "Connection": "keep-alive",
@@ -92,15 +97,34 @@ export async function getAuthorizationTokenAndRules(
     "Cookie": config.COOKIE
   };
 
+  logCb?.(`验证Cookie格式: ${config.COOKIE.substring(0, 50)}...`);
   logCb?.(`Attempting to get Authorization Token from: ${config.UID_URL}`);
-  const uidResponseData = await makeRequest('GET', config.UID_URL, commonAppHeaders, undefined, undefined, logCb);
+  
+  try {
+    const uidResponseData = await makeRequest('GET', config.UID_URL, commonAppHeaders, undefined, undefined, logCb);
 
-  let authToken: string;
-  if (uidResponseData?.code === 0 && uidResponseData?.data?.uid) {
-    authToken = uidResponseData.data.uid;
-    logCb?.(`Successfully retrieved Authorization Token: ${authToken}`);
-  } else {
-    throw new SportsUploaderError(`Failed to get Authorization Token: ${JSON.stringify(uidResponseData)}`);
+    let authToken: string;
+    if (uidResponseData?.code === 0 && uidResponseData?.data?.uid) {
+      authToken = uidResponseData.data.uid;
+      logCb?.(`Successfully retrieved Authorization Token: ${authToken}`);
+    } else {
+      // Check if response indicates authentication failure
+      if (uidResponseData?.code === 401 || 
+          (typeof uidResponseData === 'string' && uidResponseData.includes('login')) ||
+          (uidResponseData?.message && uidResponseData.message.includes('登录'))) {
+        throw new SportsUploaderError('Cookie已失效，请重新获取Cookie并登录');
+      }
+      throw new SportsUploaderError(`Failed to get Authorization Token: ${JSON.stringify(uidResponseData)}`);
+    }
+  } catch (error) {
+    if (error instanceof SportsUploaderError) {
+      throw error;
+    }
+    // Check if it's a network error that might indicate redirect to login
+    if (error instanceof Error && error.message.includes('HTTP Error: 302')) {
+      throw new SportsUploaderError('Cookie已失效或会话超时，请重新登录获取Cookie');
+    }
+    throw new SportsUploaderError(`认证请求失败: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 
   logCb?.(`Attempting to get MyData from: ${config.MY_DATA_URL}`);

@@ -7,6 +7,7 @@ import ConfigManager from '@/components/ConfigManager';
 import ProgressBar from '@/components/ProgressBar';
 import LogOutput from '@/components/LogOutput';
 import LoginForm from '@/components/LoginForm';
+import AuthDebug from '@/components/AuthDebug';
 import { Play, Square, HelpCircle, Github, ExternalLink, LogOut } from 'lucide-react';
 
 const DEFAULT_CONFIG: RunningConfig = {
@@ -113,11 +114,19 @@ export default function HomePage() {
       return;
     }
 
+    // 检查认证状态
+    if (!authToken) {
+      addLog('认证令牌缺失，请重新登录', 'error');
+      handleLogout();
+      return;
+    }
+
     setIsUploading(true);
     setLogs([]);
     setProgress({ current: 0, total: 100, message: '准备中...' });
     
     addLog('开始上传跑步数据...', 'info');
+    addLog(`使用认证令牌: ${authToken.substring(0, 10)}...`, 'info');
 
     try {
       const response = await fetch('/api/upload', {
@@ -267,6 +276,9 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Configuration */}
           <div className="lg:col-span-2 space-y-8">
+            {/* 调试工具 - 临时添加用于诊断认证问题 */}
+            <AuthDebug authToken={authToken} />
+            
             <ConfigManager 
               config={config}
               onConfigChange={setConfig}
