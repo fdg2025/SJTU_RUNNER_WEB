@@ -386,7 +386,7 @@ export default function HomePage() {
               </a>
               <span>•</span>
               <a 
-                href="https://github.com" 
+                href="https://github.com/fdg2025/SJTU_RUNNER_WEB" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
