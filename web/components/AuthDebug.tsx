@@ -85,3 +85,4 @@ export default function AuthDebug({ authToken }: AuthDebugProps) {
     </div>
   );
 }
+
