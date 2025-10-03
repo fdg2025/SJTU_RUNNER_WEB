@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { RunningConfig } from '@/lib/utils';
 import { ExternalLink, MapPin, Clock, Settings, User } from 'lucide-react';
 import CookieHelper from './CookieHelper';
+import AutoLoginForm from './AutoLoginForm';
 
 interface ConfigFormProps {
   config: RunningConfig;
@@ -14,6 +15,7 @@ interface ConfigFormProps {
 export default function ConfigForm({ config, onChange, disabled = false }: ConfigFormProps) {
   const [useCurrentTime, setUseCurrentTime] = useState(config.START_TIME_EPOCH_MS === null);
   const [showCookieHelper, setShowCookieHelper] = useState(false);
+  const [showAutoLogin, setShowAutoLogin] = useState(false);
 
   const handleInputChange = (field: keyof RunningConfig, value: string | number | null) => {
     onChange({
@@ -182,6 +184,12 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
     validateCookie(cookie);
   };
 
+  const handleCookieFromAutoLogin = (cookie: string) => {
+    handleInputChange('COOKIE', cookie);
+    setShowAutoLogin(false);
+    validateCookie(cookie);
+  };
+
   return (
     <div className="space-y-8">
       {/* User Configuration */}
@@ -195,25 +203,15 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-gray-700">Cookie</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCookieHelper(!showCookieHelper)}
-                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg transition-colors"
-                  disabled={disabled}
-                >
-                  {showCookieHelper ? '隐藏助手' : '一键获取'}
-                </button>
-                <a
-                  href="https://pe.sjtu.edu.cn/phone/#/indexPortrait"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 transition-colors"
-                >
-                  手动获取
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
+              <a
+                href="https://pe.sjtu.edu.cn/phone/#/indexPortrait"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                打开SJTU体育系统
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
                      <div className="relative">
                      <input
@@ -268,14 +266,40 @@ export default function ConfigForm({ config, onChange, disabled = false }: Confi
                      </p>
                    )}
                    
+                   <div className="flex gap-2 mt-2">
+                     <button
+                       type="button"
+                       onClick={() => setShowCookieHelper(!showCookieHelper)}
+                       className="flex-1 px-3 py-1.5 text-sm bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+                       disabled={disabled}
+                     >
+                       {showCookieHelper ? '隐藏助手' : '手动获取'}
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setShowAutoLogin(!showAutoLogin)}
+                       className="flex-1 px-3 py-1.5 text-sm bg-green-50 text-green-600 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 transition-colors"
+                       disabled={disabled}
+                     >
+                       {showAutoLogin ? '隐藏登录' : '自动登录'}
+                     </button>
+                   </div>
+                   
                    <p className="text-xs text-gray-500 mt-1">
-                     点击"一键获取"按钮自动获取Cookie，或手动复制粘贴。系统会自动验证Cookie有效性。
+                     选择"自动登录"输入账号密码自动获取，或选择"手动获取"复制粘贴Cookie。
                    </p>
             
             {/* Cookie助手 */}
             {showCookieHelper && (
               <div className="mt-3">
                 <CookieHelper onCookieExtracted={handleCookieExtracted} />
+              </div>
+            )}
+            
+            {/* 自动登录表单 */}
+            {showAutoLogin && (
+              <div className="mt-3">
+                <AutoLoginForm onCookieObtained={handleCookieFromAutoLogin} disabled={disabled} />
               </div>
             )}
           </div>
