@@ -370,7 +370,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-600">
             <div>
-              <p>© 2025 SJTU 体育跑步上传工具. 仅供学习研究使用.</p>
+              <p>© 2024 SJTU 体育跑步上传工具. 仅供学习研究使用.</p>
             </div>
             <div className="flex items-center gap-4">
               <span>版本: 1.0.0</span>
