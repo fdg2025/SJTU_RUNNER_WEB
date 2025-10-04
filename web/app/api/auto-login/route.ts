@@ -408,10 +408,10 @@ export async function PUT(request: NextRequest) {
 
     const { username, password, captcha, captchaUuid, jsessionid, jaccountUrl, loginContext } = await request.json();
     
-    if (!username || !password || !captcha || !captchaUuid || !jsessionid || !jaccountUrl) {
+    if (!username || !password || !captcha || !captchaUuid || !jsessionid || !jaccountUrl || !loginContext) {
       return NextResponse.json({
         success: false,
-        error: '用户名、密码、验证码、验证码UUID、会话ID和JAccount URL不能为空'
+        error: '用户名、密码、验证码、验证码UUID、会话ID、JAccount URL和登录上下文不能为空'
       }, { status: 400 });
     }
 
