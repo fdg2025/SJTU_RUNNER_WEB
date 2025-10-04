@@ -636,35 +636,143 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Directly access the final page to get the correct cookies
-      console.log('[Auto-Login] Accessing final page to get correct cookies');
+      // Follow the complete redirect chain to get the correct cookies
+      console.log('[Auto-Login] Following complete redirect chain to get correct cookies');
       
-      // Use original keepalive cookie to authenticate the final request
-      let finalCookieString = '';
+      let currentUrl = redirectUrl;
+      let redirectCount = 0;
+      const maxRedirects = 10;
+      let accumulatedCookies = '';
+      
+      // Start with original keepalive if available
       if (originalKeepalive) {
-        finalCookieString = `keepalive='${originalKeepalive}`;
-        console.log('[Auto-Login] Using original keepalive for final request');
+        accumulatedCookies = `keepalive='${originalKeepalive}`;
+        console.log('[Auto-Login] Starting with original keepalive cookie');
       }
       
-      const finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'same-origin',
-          'Sec-Fetch-User': '?1',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Cookie': finalCookieString,
-        },
-        redirect: 'manual',
-      });
+      while (redirectCount < maxRedirects) {
+        console.log(`[Auto-Login] Following redirect ${redirectCount + 1}: ${currentUrl}`);
+        console.log(`[Auto-Login] Using cookies: ${accumulatedCookies}`);
+        
+        const redirectResponse = await fetch(currentUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Cookie': accumulatedCookies,
+          },
+          redirect: 'manual',
+        });
+        
+        console.log(`[Auto-Login] Redirect response status: ${redirectResponse.status}`);
+        
+        // Check for Set-Cookie in redirect response
+        const redirectSetCookie = redirectResponse.headers.get('set-cookie');
+        if (redirectSetCookie) {
+          console.log('[Auto-Login] Redirect Set-Cookie:', redirectSetCookie);
+          
+          // Accumulate cookies for next request
+          const newCookies = redirectSetCookie.split(',').map(cookie => cookie.trim());
+          for (const cookie of newCookies) {
+            const cookieNameValue = cookie.split(';')[0].trim();
+            if (cookieNameValue) {
+              if (accumulatedCookies) {
+                accumulatedCookies += '; ';
+              }
+              accumulatedCookies += cookieNameValue;
+            }
+          }
+          
+          // Extract keepalive from redirect response
+          const redirectKeepaliveMatch = redirectSetCookie.match(/keepalive=([^;]+)/);
+          if (redirectKeepaliveMatch) {
+            keepalive = redirectKeepaliveMatch[1].replace(/^'|'$/g, '');
+            console.log('[Auto-Login] Redirect keepalive:', keepalive.substring(0, 20) + '...');
+          }
+          
+          // Extract JSESSIONID from redirect response
+          const redirectJsessionidMatch = redirectSetCookie.match(/JSESSIONID=([^;]+)/);
+          if (redirectJsessionidMatch) {
+            newJsessionid = redirectJsessionidMatch[1];
+            console.log('[Auto-Login] Redirect JSESSIONID:', newJsessionid);
+            
+            // Check if JSESSIONID is in UUID format
+            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (uuidPattern.test(newJsessionid)) {
+              console.log('[Auto-Login] JSESSIONID is in correct UUID format - SUCCESS!');
+              break; // We found the correct UUID format JSESSIONID
+            } else {
+              console.log('[Auto-Login] JSESSIONID is NOT in UUID format, continuing...');
+            }
+          }
+        }
+        
+        // Check if we need to follow another redirect
+        if (redirectResponse.status === 302 || redirectResponse.status === 301) {
+          const nextLocation = redirectResponse.headers.get('location');
+          if (nextLocation) {
+            // Handle relative URLs
+            if (nextLocation.startsWith('http')) {
+              currentUrl = nextLocation;
+            } else if (nextLocation.startsWith('/')) {
+              currentUrl = `https://pe.sjtu.edu.cn${nextLocation}`;
+            } else {
+              // Relative path, append to current URL
+              const urlObj = new URL(currentUrl);
+              currentUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}/${nextLocation}`;
+            }
+            redirectCount++;
+          } else {
+            console.log('[Auto-Login] No location header in redirect response');
+            break;
+          }
+        } else {
+          console.log('[Auto-Login] No more redirects needed');
+          break;
+        }
+      }
+      
+      if (redirectCount >= maxRedirects) {
+        console.log('[Auto-Login] Maximum redirects reached');
+      }
+      
+      // Final response is the last redirect response (redirectResponse is defined in the while loop)
+      let finalResponse;
+      if (typeof redirectResponse !== 'undefined') {
+        finalResponse = redirectResponse;
+      } else {
+        // Fallback: make one more request to the final URL
+        console.log('[Auto-Login] Making final request to get cookies');
+        finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/', {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Cookie': accumulatedCookies,
+          },
+          redirect: 'manual',
+        });
+      }
       
       console.log(`[Auto-Login] Final response status: ${finalResponse.status}`);
       
