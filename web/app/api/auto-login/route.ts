@@ -339,6 +339,7 @@ export async function POST(request: NextRequest) {
                 'Sec-Fetch-Site': 'same-origin',
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
+                'Referer': jaccountUrl,
                 'Cookie': jsessionid ? `JSESSIONID=${jsessionid}` : '',
               },
             });
