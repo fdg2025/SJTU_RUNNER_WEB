@@ -594,47 +594,9 @@ export async function PUT(request: NextRequest) {
       }
       console.log(`[Auto-Login] Full redirect URL: ${redirectUrl}`);
       
-      // Follow redirect to get cookies
-      const redirectResponse = await fetch(redirectUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'cross-site',
-          'Sec-Fetch-User': '?1',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Cookie': `JSESSIONID=${jsessionid}`,
-        },
-        redirect: 'manual',
-      });
-
-      console.log(`[Auto-Login] Redirect response status: ${redirectResponse.status}`);
-
-      // Extract cookies from redirect response
-      const setCookieHeader = redirectResponse.headers.get('set-cookie');
+      // Initialize variables for cookie extraction
       let keepalive = '';
       let newJsessionid = jsessionid;
-
-      if (setCookieHeader) {
-        // Extract keepalive cookie
-        const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
-        if (keepaliveMatch) {
-          keepalive = keepaliveMatch[1].replace(/^'|'$/g, '');
-        }
-
-        // Extract new JSESSIONID if present
-        const jsessionidMatch = setCookieHeader.match(/JSESSIONID=([^;]+)/);
-        if (jsessionidMatch) {
-          newJsessionid = jsessionidMatch[1];
-        }
-      }
 
       // Follow the complete redirect chain to get the correct cookies
       console.log('[Auto-Login] Following complete redirect chain to get correct cookies');
@@ -863,7 +825,7 @@ export async function PUT(request: NextRequest) {
       console.log('[Auto-Login] Cookie 提取结果:', {
         keepalive: keepalive ? keepalive.substring(0, 20) + '...' : 'empty',
         newJsessionid: newJsessionid ? newJsessionid.substring(0, 20) + '...' : 'empty',
-        redirectSetCookie: setCookieHeader ? setCookieHeader.substring(0, 100) + '...' : 'empty'
+        finalResponseStatus: finalResponse ? finalResponse.status : 'undefined'
       });
 
       if (keepalive && newJsessionid) {
