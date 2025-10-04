@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>上海交通大学统一身份认证</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0"/>
+    <base href="/jaccount/"/>
+    <link rel="icon" type="image/x-icon" href="image/favicon.png?v=20161228" />
+    <link href="css/login.css?v=20240418" rel="stylesheet"/>
+    <script src="js/jquery-1.7.1.js" type="text/javascript"></script>
+    </head>
+<body>
+<noscript>浏览器当前不允许JavaScript执行，无法正常进行jAccount登录</noscript>
+<div id="page">
+    <div id="header" class="clearfix">
+        <div class="container">
+            <div class="logo">
+                <img src="image/sjtu.png?v=20161228" border="0"/>
+            </div>
+        </div>
+    </div>
+    <div id="content">
+        <div class="container">
+            <div class="login-bg"></div>
+            <div class="login-layout">
+                
+
+
+<link rel="stylesheet" href="css/toast.css?t=20240417">
+<link rel="stylesheet" href="css/tooltip.css?t=20240417">
+<link rel="stylesheet" href="css/sms-fail.css?t=20240417">
+<script src="utils/toast.js?t=20240418"></script>
+<script src="utils/tooltip.js?t=20240418"></script>
+<script src="js/sms.js?v=20250226"></script>
+<script src="js/app.js?v=20250507"></script>
+<style>
+    .captcha-input img.img-icon {
+        width: 25px;
+        height: 26px;
+        position: absolute;
+        top: 9px;
+        left: 7px;
+    }
+
+    .captcha-input #sms-btn {
+        min-width: 98px;
+        height: 42px;
+        line-height: 44px;
+        padding: 0 10px;
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 14px;
+        color: #FFF;
+        text-align: center;
+        background: #3079ed;
+        border-radius: 0 4px 4px 0;
+        cursor: pointer;
+    }
+
+    .confirm-cancel {
+        cursor: pointer;
+    }
+
+    .left {
+        float: left;
+    }
+
+    .right {
+        float: right;
+    }
+
+</style>
+<script>
+
+    var navigating = false;
+    var hasSub = false,
+        subFailed = false;
+    var websocket = null;
+    var firefox = navigator.userAgent.toLowerCase().indexOf("firefox") != -1;
+    var loginContext = {
+        loginType: "password",
+        sid: "jaoauth220160718",
+        client: "CH/E7U6lB2gWrlslHr9SlYWieElj/45Ny2nR05pSmzla",
+        returl:"CPyHkWg51zd+lki9rT2QMd66hwCxV7FumaRxPje7Bq0ab0RKlsKpuHQZPbcVfx4yHBWSQFvS3D/U3w0lwNC4eHV5uEhrkRmiEgbu1ZWz64IMzxF+WOccb8x0VJ8yjXGBwmKtW3sTLaPn",
+        se: "CG/kIgmv8u2FYOU5H/R1PxrPR9KHtHVzl/IGQ/KyRfJFj95y73MgxZj51Z5rOyVrTCJ0GurcVQTR",
+        v: "",
+        uuid: "1a33edd2-d886-43c9-9455-a505adc88c83"
+    };
+
+    function addEvent(html_element, event_name, event_function) {
+        if (html_element.addEventListener) { // Modern
+            html_element.addEventListener(event_name, event_function, false);
+        } else if (html_element.attachEvent) { // Internet Explorer
+            html_element.attachEvent("on" + event_name, event_function);
+        } else { // others
+            html_element["on" + event_name] = event_function;
+        }
+    }
+
+    function showQr(url, msg) {
+        var img = document.getElementById('qr-img');
+        if (img != null) {
+            img.src = url;
+        }
+        if (msg != null) {
+            var msgSpan = document.getElementById('qr-msg');
+            if (msgSpan != null) {
+                msgSpan.innerHTML = msg;
+            }
+        }
+    }
+
+    function showTryAppLogin(timeout) {
+        var waitDiv = document.getElementById('login-app-wait'),
+            spinnerDiv = document.getElementById('login-app-spinner'),
+            downloadDiv = document.getElementById('login-app-download'),
+            failDiv = document.getElementById('login-app-fail');
+        if (waitDiv != null) {
+            waitDiv.setAttribute('class', 'show');
+            waitDiv.removeAttribute('style');
+            spinnerDiv.removeAttribute('class');
+            downloadDiv.removeAttribute('class');
+            failDiv.removeAttribute('class');
+        }
+
+        return setTimeout(function () {
+            waitDiv.setAttribute('class', 'show download');
+            spinnerDiv.setAttribute('class', 'hide');
+            downloadDiv.setAttribute('class', 'show');
+            failDiv.removeAttribute('class');
+        }, timeout);
+    }
+
+    function showTryAppFailed() {
+        var waitDiv = document.getElementById('login-app-wait'),
+            spinnerDiv = document.getElementById('login-app-spinner'),
+            downloadDiv = document.getElementById('login-app-download'),
+            failDiv = document.getElementById('login-app-fail');
+        waitDiv.setAttribute('class', 'show');
+        spinnerDiv.setAttribute('class', 'hide');
+        downloadDiv.removeAttribute('class');
+        failDiv.setAttribute('class', 'show');
+        setTimeout(function () {
+            waitDiv.removeAttribute('class');
+        }, 5000)
+    }
+
+    function downloadApp() {
+        window.location.href = "https://form.sjtu.edu.cn/mobile/download.jsp";
+    }
+
+    function cancelAppLogin() {
+        var waitDiv = document.getElementById('login-app-wait');
+        if (waitDiv != null) {
+            waitDiv.removeAttribute('class');
+        }
+    }
+
+    function sub() {
+        if (navigating) {
+            return;
+        }
+        if (!hasSub || subFailed) {
+            hasSub = true;
+
+            if ('WebSocket' in window) {
+                var pageUrl = window.location, socketUrl;
+                if (pageUrl.protocol === "https:") {
+                    socketUrl = "wss:";
+                } else {
+                    socketUrl = "ws:";
+                }
+                socketUrl += "//" + pageUrl.host;
+                socketUrl += "/jaccount/sub/1a33edd2-d886-43c9-9455-a505adc88c83";
+                websocket = new WebSocket(socketUrl);
+                websocket.onmessage = function(event) {
+                    var msg = JSON.parse(event.data);
+                    switch (msg.type) {
+                        case 'UPDATE_QR_CODE':
+                            showQr('qrcode?uuid=1a33edd2-d886-43c9-9455-a505adc88c83&ts=' + msg.payload.ts + '&sig=' + msg.payload.sig);
+                            break;
+                        case 'ERROR_MESSAGE':
+                            break;
+                        case 'LOGIN':
+                            navigating = true;
+                            window.location.href = "expresslogin?uuid=1a33edd2-d886-43c9-9455-a505adc88c83";
+                            break;
+                    }
+                };
+                websocket.onopen = function() {
+                    subFailed = false;
+                    afterSubSuccess();
+                };
+                websocket.onerror = function() {
+                    afterSubFailed();
+                };
+                websocket.onclose = function(event) {
+                    hasSub = false;
+                    showQr('', '链接中断，请刷新登录页');
+                    if (event.code == 1001) { //GOING_AWAY
+                        setTimeout(sub, 1000);
+                    } else if (event.code == 1006) { //CLOSED_ABNORMALLY
+                        setTimeout(sub, 5000);
+                    }
+                };
+            } else {
+                afterSubFailed()
+            }
+        }
+    };
+
+    function afterSubSuccess() {
+        if (hasSub && !subFailed) {
+            try {
+                websocket.send('{ "type": "UPDATE_QR_CODE" }');
+                setTimeout(afterSubSuccess, 60000);
+            } catch (ex) {
+                try {
+                    websocket.close();
+                } catch (ignored) {}
+            }
+        }
+    }
+
+    function afterSubFailed() {
+        subFailed = true;
+        showQr('', '二维码获取失败');
+    }
+
+    var captchaCheckStatus = null;
+
+    function setCaptchaCheckStatus(status) {
+        if (captchaCheckStatus != null && captchaCheckStatus != 'waiting') {
+            return;
+        }
+        captchaCheckStatus = status;
+        if (status == 'waiting') {
+            $("#captcha-verify").show();
+            return;
+        }
+        $("#captcha-verify").hide();
+        if (status == 'passed') {
+            if ($.support.leadingWhitespace) {
+                $("#operate-buttons").slideDown();
+            } else {
+                $("#operate-buttons").show();
+            }
+            return;
+        }
+        showCaptcha();
+    }
+
+    function showCaptcha() {
+        refreshCaptcha();
+        if ($.support.leadingWhitespace) {
+            $("#captcha-box").slideDown(function () {
+                $("#operate-buttons").slideDown();
+            });
+        } else {
+            $("#captcha-box").show();
+            $("#operate-buttons").show();
+        }
+    }
+
+    function refreshCaptcha() {
+        var img = document.getElementById('captcha-img');
+        if (img != null) {
+            img.src = 'captcha?uuid=1a33edd2-d886-43c9-9455-a505adc88c83&t=' + (new Date()).getTime();
+        }
+    }
+
+    function switchLoginType(type) {
+        loginContext.loginType = type;
+        if (type === 'sms') {
+            $("#login-with-sms").css('display', 'block');
+            $("#login-with-password").css('display', 'none');
+            return;
+        }
+        if (type === 'password') {
+            $("#login-with-sms").css('display', 'none');
+            $("#login-with-password").css('display', 'block');
+            return;
+        }
+    }
+
+    var submitted = false;
+    var captchaObj = null;
+
+    var checkForm = function (button) {
+
+        if (submitted === true) {
+            return false;
+        }
+
+        button = $(button);
+
+        var params = {
+            sid: loginContext.sid,
+            client: loginContext.client,
+            returl: loginContext.returl,
+            se: loginContext.se,
+            v: loginContext.v,
+            uuid: loginContext.uuid
+        };
+
+        showMessage(null);
+
+        switch (loginContext.loginType) {
+            case "password": {
+                var user = $("#input-login-user"),
+                    password = $("#input-login-pass"),
+                    captcha = $("#input-login-captcha");
+
+
+                if (user.val() === '') {
+                    showMessage('请输入您的jAccount账号')
+                    user.focus();
+                    return false;
+                }
+
+                if (password.val() === '') {
+                    showMessage('请输入您的密码')
+                    password.focus();
+                    return false;
+                }
+
+                if (captcha.val() && /\s/.test(captcha.val())) {
+                    captcha.val(captcha.val().replace(/\s/g, ''))
+                }
+
+                if (captchaCheckStatus != "passed") {
+                    if (captchaObj != null) {
+                        captchaObj.verify();
+                        return false;
+                    }
+
+                    if (captcha.val() === '') {
+                        showMessage('请输入验证码')
+                        captcha.focus();
+                        return false;
+                    }
+                }
+
+                params.user = user.val();
+                params.pass = password.val();
+                params.captcha = captcha.val();
+                params.lt = 'p';
+                break;
+            }
+            case "sms": {
+                var mobile = assertMobile();
+                if (!mobile) {
+                    return false;
+                }
+                var captcha = $("#input-login-sms");
+                if (captcha.val() && /\s/.test(captcha.val())) {
+                    captcha.val(captcha.val().replace(/\s/g, ''))
+                }
+
+                if (captcha.val() === '') {
+                    showMessage('请输入短信验证码')
+                    captcha.focus();
+                    return false;
+                }
+                if (!captcha.val().match(/\d{6}/)) {
+                    showMessage('短信验证码不正确')
+                    captcha.focus();
+                    return false;
+                }
+
+                params.mobile = mobile;
+                params.captcha = captcha.val();
+                params.lt = 's';
+                break;
+            }
+        }
+
+        submitted = true;
+        button.addClass("submitted btn-secondary");
+        $('.form-input').blur(); // 表单校验通过，发起请求前失去焦点
+
+        $.ajax({
+            url: "ulogin",
+            data: params,
+            type: 'POST',
+            error: function(xhr, status, error) {
+                console.log(xhr, status)
+                submitted = false;
+                button.removeClass("submitted btn-secondary");
+            },
+            success: function(data, status) {
+                var errno = data.errno, error = data.error, url = data.url;
+                if (errno === 0) {
+                    window.location.href = url;
+                    return;
+                }
+                showMessage(error);
+                refreshCaptcha();
+                submitted = false;
+                button.removeClass("submitted btn-secondary");
+            }
+        });
+
+        return false;
+    }
+
+    function showMessage(msg) {
+        var warnDiv = $("#div_warn");
+        if (msg) {
+            var warnSpan = $("#span_warn");
+            warnSpan.text(msg);
+            warnDiv.css("display", "block");
+        } else {
+            warnDiv.css("display", "none");
+        }
+    }
+
+    function appLogin() {
+        showTryAppLogin(5000);
+        if (firefox) {
+            document.getElementById("firefox_link").click();
+        } else {
+            window.location.href = 'jaccount://login?uuid=1a33edd2-d886-43c9-9455-a505adc88c83';
+        }
+        return false;
+    }
+
+    function assertMobile() {
+        var mobile = $("#input-login-mobile");
+        var m = mobile.val().trim();
+        if (m === '') {
+            showMessage('请输入您的手机号码')
+            mobile.focus();
+            return null;
+        }
+        if (!m.match(/1\d{10}/)) {
+            showMessage('手机号不正确')
+            mobile.focus();
+            return null;
+        }
+        return m;
+    }
+
+    function getSms() {
+        var mobile = assertMobile();
+        if (mobile) {
+            smsContext.getSms({mobile: mobile});
+        }
+    }
+
+    // 解决input type="number"时，maxlength不生效问题以及ios粘贴验证码会粘贴两次的问题
+    function setCaptchaCode(e, length) {
+        length = length || 6;
+        var target = $(e.target);
+        var value = target.val() || '';
+        if (/[^\d]/.test(value) || value.length > length) {
+            value = value.replace(/[^\d]/g, '');
+            if (value.length > length) {
+                value = value.substr(0, length);
+            }
+            target.val(value);
+        }
+    }
+</script>
+<iframe name="firefox_iframe" style="width:0px;height:0px;position:fixed;top:-1000px"></iframe>
+<a id="firefox_link" href="jaccount://login?uuid=1a33edd2-d886-43c9-9455-a505adc88c83" target="firefox_iframe" style="display: none"/>
+<div id="login-app">
+    <a class="app-link" onclick="return appLogin();" href="#" target="_self">
+        <div>
+            <div class="app-icon"></div>
+            <div class="app-login-text">使用"交我办"快速登录</div>
+        </div>
+    </a>
+</div>
+<div id="login-form">
+    <div class="login-qr">
+        <div class="qr-title"><span id="qr-title">扫码登录</span></div>
+        <div id="qr-mask">
+            <img id="qr-img" border="0" width="185" height="185"
+                 onload="document.getElementById('qr-msg').innerHTML = '请使用交我办或微信'"/>
+        </div>
+        <div class="qr-tips"><span id="qr-msg">正在获取二维码</span></div>
+    </div>
+    <div class="form-login">
+        <div class="login-header">
+            <div class="login-title">登录jAccount</div>
+        </div>
+        
+        <div id="div_warn" class='warn-info' style="display: none"><span class='icon i-warn'></span><span id="span_warn"></span></div>
+        <form id="smsForm" method="post">
+            <div id="login-with-sms" style="display: none">
+                <div class="input-control">
+                    <span class="icon i-account"></span>
+                    <input class="form-input" type="tel" id="input-login-mobile"
+                           placeholder="手机号码" autocomplete="off">
+                </div>
+                <div class="input-control">
+                    <div id="sms-box" class="captcha-input">
+                        <img src="image/captcha.png" class="img-icon">
+                        <input class="form-input" type="number" id="input-login-sms" name="captcha" maxlength="6" oninput="setCaptchaCode(event)"
+                               placeholder="短信验证码" autocomplete="off">
+                        <div id="sms-btn" onclick="getSms()">获取验证码</div>
+                    </div>
+                </div>
+                <div class="clearfix">
+                    <div class="confirm-cancel right" style="color: gray;" onclick="smsContext.promptCannotReceiveMessage()">收不到验证码？</div>
+                </div>
+                <div style="margin-top: 15px">
+                    <input id="submit-sms-button" type="submit" class="btn btn-primary form-submit"
+                           value="登 录"
+                           onclick="return checkForm(this)">
+                </div>
+                <div style="margin-top: 30px">
+                    <a style="color: gray; font-size: 15px" href="javascript:switchLoginType('password')">使用账号密码登录</a>
+                </div>
+            </div>
+        </form>
+        <form id="passwordForm" method="post">
+            <div id="login-with-password">
+                <div class="input-control">
+                    <span class="icon i-account"></span>
+                    <input class="form-input" type="text" id="input-login-user" name="user"
+                           placeholder="jAccount用户名" autocomplete="off">
+                </div>
+                <div class="input-control">
+                    <span class="icon i-pass"></span>
+                    <input class="form-input" type="password" id="input-login-pass" name="pass"
+                           placeholder="jAccount密码" autocomplete="off">
+                </div>
+                <div class="input-control">
+                    <div id="captcha-box" class="captcha-input" style="display: none">
+                        <span class="icon i-captcha"></span>
+                        <input class="form-input" type="text" id="input-login-captcha" name="captcha"
+                               placeholder="请输入验证码" autocomplete="off">
+                        <img id="captcha-img" src="" alt="" onclick="refreshCaptcha()">
+                    </div>
+                </div>
+                <div style="margin-top: 15px">
+                    <div id="captcha-verify" style="display: none">正在校验登录环境</div>
+                    <div id="operate-buttons" style="display: none">
+                        <input id="submit-password-button" type="submit" class="btn btn-primary form-submit"
+                               value="登 录"
+                               onclick="return checkForm(this)">
+                        
+                    </div>
+                </div>
+                
+                    <div id="login-action" class="action-control">
+                        <a href="/profile/#/find">忘记密码/用户名</a>
+                        
+                            <a href="/profile/#apply" class="pull-right">创建jAccount账号</a>
+                        
+                    </div>
+                
+                
+                    <div style="margin-top: 30px">
+                        <a style="color: gray; font-size: 15px" href="javascript:switchLoginType('sms')">使用短信验证登录</a>
+                    </div>
+                
+            </div>
+        </form>
+
+        <div id="login-app-wait">
+            <div id="login-app-spinner">尝试切换至"交我办"</div>
+            <div id="login-app-fail">切换至"交我办"失败</div>
+            <div id="login-app-download">
+                <div>此功能需要"交我办"<br>客户端才能使用</div>
+                <div>
+                    <input type="button" class="btn btn-primary"
+                           value="下载客户端"
+                           onclick="downloadApp()">
+                    <input type="button" class="btn btn-secondary"
+                           value="取消"
+                           onclick="cancelAppLogin()">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    sub();
+
+    addEvent(window, "orientationchange", function () {
+        sub();
+    });
+
+    
+
+    
+    
+    setCaptchaCheckStatus('failed');
+    
+    
+
+    
+
+    var smsContext = createSmsContext({
+        url: 'sms/login',
+        button: '#sms-btn',
+        text: '#input-login-sms',
+        tipBase: '#sms-box',
+        buttonGetCaption: '获取验证码',
+        buttonRefreshCaption: '重新获取',
+        cannotReceiveMessage: '\u003Cdiv\u003E\u003Cdiv class=\"notice-item\"\u003E\u003Cli\u003E如需更换系统绑定的手机号码，请至交我办PC端（my.sjtu.edu.cn）“我的信息资源”进行修改。\u003C\/li\u003E\u003C\/div\u003E\u003Cdiv class=\"notice-item\"\u003E\u003Cli\u003E移动用户如无法收到验证短信，请尝试发送 11111 至 \u003Ca href=\"sms:106575165024\" class=\"handler\"\u003E106575165024\u003C\/a\u003E 解除运营商限制。\u003C\/li\u003E\u003C\/div\u003E\u003Cdiv class=\"notice-item\"\u003E\u003Cli\u003E联通、电信用户如无法收到验证短信，请尝试发送 1111 至 \u003Ca href=\"sms:10691511\" class=\"handler\"\u003E10691511\u003C\/a\u003E 解除运营商限制。\u003C\/li\u003E\u003C\/div\u003E\u003Cdiv class=\"notice-item\"\u003E\u003Cli\u003E如仍无法解决，请联系网络信息中心。咨询电话：\u003Ca href=\"tel:02134206060\" class=\"handler\"\u003E（021）34206060\u003C\/a\u003E\u003C\/li\u003E\u003C\/div\u003E\u003C\/div\u003E',
+        commonErrorMessage: '网络异常',
+        buttonClosePromptCaption: '确认'
+    });
+
+    $(document).ready(function () {
+        try {
+            if (_app.supportNotifyLogin) {
+                _app.notifyLogin();
+            }
+        } catch (err) {
+        }
+        $('#login-with-sms .form-input').on('keydown', function(event) {
+            if (event.keyCode === 13) {
+                checkForm($('#submit-sms-button'));
+            }
+        })
+        $('#login-with-password .form-input').on('keydown', function(event) {
+            if (event.keyCode === 13) {
+                checkForm($('#submit-password-button'));
+            }
+        })
+        $('#smsForm').on('submit', function(event) {
+            event.preventDefault();
+        });
+        $('#passwordForm').on('submit', function(event) {
+            event.preventDefault();
+        });
+    })
+</script>
+</div>
+        </div>
+    </div>
+    <div id="footer">
+        <div class="container">
+            <div class="contact">
+                联系方式：闵行校区图书信息楼一楼，徐汇校区教三楼一楼，021-34206060<br>
+                <span class="en">©2019</span> <a href="https://net.sjtu.edu.cn">上海交通大学网络信息中心</a> <a href="mailto:service@sjtu.edu.cn">service@sjtu.edu.cn</a>
+                    </div>
+            <a class="net" href="javascript:void(0)"><img src="image/ja-net-light.png" border="0" width="250"></a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

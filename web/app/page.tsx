@@ -204,7 +204,7 @@ export default function HomePage() {
                 帮助
               </button>
               <a
-                href="https://github.com"
+                href="https://github.com/fdg2025/SJTU_RUNNER_WEB"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
@@ -386,7 +386,7 @@ export default function HomePage() {
               </a>
               <span>•</span>
               <a 
-                href="https://github.com" 
+                href="https://github.com/fdg2025/SJTU_RUNNER_WEB" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-primary-600 hover:text-primary-700 flex items-center gap-1"

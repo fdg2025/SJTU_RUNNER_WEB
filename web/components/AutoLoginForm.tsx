@@ -11,10 +11,18 @@ interface AutoLoginFormProps {
 export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginFormProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [captcha, setCaptcha] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaUrl, setCaptchaUrl] = useState('');
+  const [captchaUuid, setCaptchaUuid] = useState('');
+  const [jsessionid, setJsessionid] = useState('');
+  const [jaccountUrl, setJaccountUrl] = useState('');
+  const [loginContext, setLoginContext] = useState<any>(null);
+  const [requiresCaptcha, setRequiresCaptcha] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,24 +42,97 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         throw new Error('请先登录系统');
       }
 
-      const response = await fetch('/api/auto-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ username, password }),
-      });
+      // 如果还没有验证码，先获取验证码
+      if (!requiresCaptcha) {
+        const response = await fetch('/api/auto-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ username, password }),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (data.success && data.cookie) {
-        setSuccess('自动登录成功！Cookie已自动填充');
-        onCookieObtained(data.cookie);
-        // 清空密码字段
-        setPassword('');
+        if (data.requiresCaptcha && data.captchaImage) {
+          setCaptchaImage(data.captchaImage);
+          setCaptchaUrl(data.captchaUrl);
+          setCaptchaUuid(data.captchaUuid);
+          setJsessionid(data.jsessionid);
+          setJaccountUrl(data.jaccountUrl);
+          setLoginContext(data.loginContext);
+          setRequiresCaptcha(true);
+          setError('请输入验证码');
+          return;
+        } else {
+          setError(data.error || '获取验证码失败');
+          return;
+        }
+      }
+
+      // 如果有验证码，提交登录
+      if (requiresCaptcha && captcha.trim()) {
+        // 调试信息
+        console.log('提交登录参数:', {
+          username,
+          password: password ? '***' : 'empty',
+          captcha,
+          captchaUuid,
+          jsessionid,
+          jaccountUrl,
+          loginContext
+        });
+        
+        const response = await fetch('/api/auto-login', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ 
+            username, 
+            password, 
+            captcha, 
+            captchaUuid, 
+            jsessionid,
+            jaccountUrl,
+            loginContext
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.cookie) {
+          setSuccess('自动登录成功！Cookie已自动填充');
+          onCookieObtained(data.cookie);
+          // 清空所有字段
+          setPassword('');
+          setCaptcha('');
+          setRequiresCaptcha(false);
+          setCaptchaImage('');
+          setCaptchaUrl('');
+          setCaptchaUuid('');
+          setJsessionid('');
+          setJaccountUrl('');
+          setLoginContext(null);
+        } else {
+          setError(data.error || '自动登录失败');
+          // 如果验证码错误，重新获取验证码
+          if (data.error && (data.error.includes('验证码') || data.error.includes('keepalive'))) {
+            setRequiresCaptcha(false);
+            setCaptcha('');
+            setCaptchaImage('');
+            setCaptchaUrl('');
+            setCaptchaUuid('');
+            setJsessionid('');
+            setJaccountUrl('');
+            setLoginContext(null);
+            setError('验证码已过期，请重新获取验证码');
+          }
+        }
       } else {
-        setError(data.error || '自动登录失败');
+        setError('请输入验证码');
       }
     } catch (error) {
       console.error('Auto login error:', error);
@@ -115,20 +196,61 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
           </div>
         </div>
 
+        {/* 验证码输入 */}
+        {requiresCaptcha && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              验证码
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={captcha}
+                onChange={(e) => setCaptcha(e.target.value)}
+                placeholder="请输入验证码"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={disabled || isLoading}
+                required
+              />
+              {captchaImage && (
+                <div className="flex-shrink-0">
+                  <img
+                    src={captchaImage}
+                    alt="验证码"
+                    className="w-24 h-10 border border-gray-300 rounded cursor-pointer"
+                    onClick={() => {
+                      // 点击验证码图片可以刷新
+                      setRequiresCaptcha(false);
+                      setCaptcha('');
+                      setCaptchaImage('');
+                      setCaptchaUrl('');
+                      setCaptchaUuid('');
+                      setJsessionid('');
+                      setJaccountUrl('');
+                      setLoginContext(null);
+                    }}
+                    title="点击刷新验证码"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <button
           type="submit"
-          disabled={disabled || isLoading || !username.trim() || !password.trim()}
+          disabled={disabled || isLoading || !username.trim() || !password.trim() || (requiresCaptcha && !captcha.trim())}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isLoading ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              正在登录...
+              {requiresCaptcha ? '正在登录...' : '获取验证码...'}
             </>
           ) : (
             <>
               <LogIn className="w-4 h-4" />
-              自动获取Cookie
+              {requiresCaptcha ? '提交登录' : '获取验证码'}
             </>
           )}
         </button>
