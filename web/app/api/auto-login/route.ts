@@ -629,6 +629,19 @@ export async function PUT(request: NextRequest) {
           keepalive: !!keepalive,
           newJsessionid: !!newJsessionid
         });
+        
+        // 备用方案：如果 keepalive 获取失败，返回 JSESSIONID
+        if (newJsessionid) {
+          const fallbackCookie = `JSESSIONID=${newJsessionid}`;
+          console.log(`[Auto-Login] Using fallback cookie: ${fallbackCookie}`);
+          
+          return NextResponse.json({
+            success: true,
+            cookie: fallbackCookie,
+            message: '自动登录成功，已获取JSESSIONID（keepalive获取失败）'
+          });
+        }
+        
         throw new Error('无法获取keepalive Cookie');
       }
     } else {
