@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Auto-Login] Attempting login for user: ${username}`);
 
+    // Store original keepalive for later use
+    let originalKeepalive = '';
+
     // Step 1: Access the phone page to trigger JAccount redirect
     const phoneResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
       method: 'GET',
@@ -70,6 +73,13 @@ export async function POST(request: NextRequest) {
         console.log(`[Auto-Login] Retrieved JSESSIONID: ${jsessionid.substring(0, 20)}...`);
       } else {
         console.log('[Auto-Login] No JSESSIONID found in Set-Cookie header');
+      }
+      
+      // Also extract keepalive for later use
+      const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+      if (keepaliveMatch) {
+        originalKeepalive = keepaliveMatch[1].replace(/^'|'$/g, '');
+        console.log(`[Auto-Login] Retrieved keepalive: ${originalKeepalive.substring(0, 20)}...`);
       }
     } else {
       console.log('[Auto-Login] No Set-Cookie header found');
@@ -455,6 +465,40 @@ export async function PUT(request: NextRequest) {
 
     const { username, password, captcha, captchaUuid, jsessionid, jaccountUrl, loginContext } = await request.json();
     
+    // Get original keepalive from initial POST request by accessing phone page again
+    let originalKeepalive = '';
+    try {
+      const initialPhoneResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+        redirect: 'manual',
+      });
+      
+      const initialSetCookie = initialPhoneResponse.headers.get('set-cookie');
+      if (initialSetCookie) {
+        const keepaliveMatch = initialSetCookie.match(/keepalive=([^;]+)/);
+        if (keepaliveMatch) {
+          originalKeepalive = keepaliveMatch[1].replace(/^'|'$/g, '');
+          console.log(`[Auto-Login] Retrieved original keepalive: ${originalKeepalive.substring(0, 20)}...`);
+        }
+      }
+    } catch (error) {
+      console.log('[Auto-Login] Failed to get original keepalive:', error);
+    }
+    
     // 调试信息
     console.log('[Auto-Login PUT] 接收到的参数:', {
       username: username ? '***' : 'empty',
@@ -595,12 +639,7 @@ export async function PUT(request: NextRequest) {
       // Always access the phone page to get the correct cookies after successful login
       console.log('[Auto-Login] Accessing phone page to get final cookies');
       
-      // Use the original keepalive cookie from initial request
-      let originalKeepalive = '';
-      if (setCookieHeader) {
-        const originalKeepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
-        originalKeepalive = originalKeepaliveMatch ? originalKeepaliveMatch[1].replace(/^'|'$/g, '') : '';
-      }
+      // Use the original keepalive cookie from initial request (already extracted above)
       
       let cookieString = '';
       if (originalKeepalive) {
