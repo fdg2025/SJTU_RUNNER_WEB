@@ -974,7 +974,9 @@ export async function PUT(request: NextRequest) {
               const additionalJsessionidMatch = additionalSetCookie.match(/JSESSIONID=([^;]+)/);
               if (additionalJsessionidMatch) {
                 const candidateJsessionid = additionalJsessionidMatch[1];
-                console.log('[Auto-Login] Found JSESSIONID candidate from additional URL:', candidateJsessionid);
+                console.log('[Auto-Login] Found JSESSIONID candidate from additional URL:', url);
+                console.log('[Auto-Login] JSESSIONID value:', candidateJsessionid);
+                console.log('[Auto-Login] Cookie variant used:', cookieVariant.substring(0, 100) + '...');
                 
                 // 检查JSESSIONID格式 - 优先选择UUID格式的JSESSIONID
                 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -990,16 +992,19 @@ export async function PUT(request: NextRequest) {
                 // 优先选择UUID格式的JSESSIONID
                 if (isUuidFormat) {
                   newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] Using UUID format JSESSIONID:', newJsessionid);
+                  console.log('[Auto-Login] ✅ SELECTED UUID format JSESSIONID from URL:', url);
+                  console.log('[Auto-Login] ✅ Final JSESSIONID:', newJsessionid);
                   break; // 找到UUID格式的JSESSIONID就停止
                 } else if (!isJaccountFormat && !newJsessionid.includes('.jaccount')) {
                   // 如果不是JAccount格式且当前也不是JAccount格式，则使用这个
                   newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] Using non-JAccount format JSESSIONID:', newJsessionid);
+                  console.log('[Auto-Login] ⚠️ SELECTED non-JAccount format JSESSIONID from URL:', url);
+                  console.log('[Auto-Login] ⚠️ Final JSESSIONID:', newJsessionid);
                 } else if (isJaccountFormat && newJsessionid.includes('.jaccount')) {
                   // 如果都是JAccount格式，选择较新的
                   newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] Using JAccount format JSESSIONID:', newJsessionid);
+                  console.log('[Auto-Login] ⚠️ SELECTED JAccount format JSESSIONID from URL:', url);
+                  console.log('[Auto-Login] ⚠️ Final JSESSIONID:', newJsessionid);
                 }
               }
             }
