@@ -643,6 +643,7 @@ export async function PUT(request: NextRequest) {
       let redirectCount = 0;
       const maxRedirects = 10;
       let accumulatedCookies = '';
+      let finalResponse;
       
       // Start with original keepalive if available
       if (originalKeepalive) {
@@ -675,6 +676,9 @@ export async function PUT(request: NextRequest) {
         });
         
         console.log(`[Auto-Login] Redirect response status: ${redirectResponse.status}`);
+        
+        // Store the response for final processing
+        finalResponse = redirectResponse;
         
         // Check for Set-Cookie in redirect response
         const redirectSetCookie = redirectResponse.headers.get('set-cookie');
@@ -746,13 +750,10 @@ export async function PUT(request: NextRequest) {
         console.log('[Auto-Login] Maximum redirects reached');
       }
       
-      // Final response is the last redirect response (redirectResponse is defined in the while loop)
-      let finalResponse;
-      if (typeof redirectResponse !== 'undefined') {
-        finalResponse = redirectResponse;
-      } else {
-        // Fallback: make one more request to the final URL
-        console.log('[Auto-Login] Making final request to get cookies');
+      // If we didn't get UUID format JSESSIONID, make one more request to the final URL
+      if (!keepalive || !newJsessionid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid)) {
+        console.log('[Auto-Login] Making final request to pe.sjtu.edu.cn/phone/ to get correct cookies');
+        
         finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/', {
           method: 'GET',
           headers: {
@@ -772,6 +773,33 @@ export async function PUT(request: NextRequest) {
           },
           redirect: 'manual',
         });
+        
+        console.log(`[Auto-Login] Final request response status: ${finalResponse.status}`);
+        
+        // Extract cookies from final request
+        const finalSetCookie = finalResponse.headers.get('set-cookie');
+        if (finalSetCookie) {
+          console.log('[Auto-Login] Final request Set-Cookie:', finalSetCookie);
+          
+          // Extract keepalive from final response
+          const finalKeepaliveMatch = finalSetCookie.match(/keepalive=([^;]+)/);
+          if (finalKeepaliveMatch) {
+            keepalive = finalKeepaliveMatch[1].replace(/^'|'$/g, '');
+            console.log('[Auto-Login] Final keepalive:', keepalive.substring(0, 20) + '...');
+          }
+          
+          // Extract JSESSIONID from final response
+          const finalJsessionidMatch = finalSetCookie.match(/JSESSIONID=([^;]+)/);
+          if (finalJsessionidMatch) {
+            newJsessionid = finalJsessionidMatch[1];
+            console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
+          }
+        }
+      }
+      
+      // Ensure finalResponse is defined
+      if (!finalResponse) {
+        throw new Error('Final response is undefined');
       }
       
       console.log(`[Auto-Login] Final response status: ${finalResponse.status}`);
