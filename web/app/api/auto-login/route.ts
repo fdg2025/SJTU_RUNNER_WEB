@@ -253,11 +253,132 @@ export async function POST(request: NextRequest) {
           }
         } else {
           console.log('[Auto-Login] Cannot access protected content, need JAccount login');
-          throw new Error('Need JAccount login to access protected content');
+          // Instead of throwing error, proceed to JAccount flow
+          console.log('[Auto-Login] Proceeding to JAccount flow for captcha');
+          // This will fall through to the JAccount flow
         }
       } catch (protectedError) {
         console.log('[Auto-Login] Protected content check failed, proceeding to JAccount flow');
-        throw new Error('Need to proceed to JAccount login flow');
+        // Instead of throwing error, proceed to JAccount flow
+        console.log('[Auto-Login] Proceeding to JAccount flow for captcha');
+        // This will fall through to the JAccount flow
+      }
+      
+      // If we reach here, we need to proceed to JAccount flow
+      // Since we're already on the phone page, we need to manually trigger JAccount redirect
+      console.log('[Auto-Login] Manually triggering JAccount flow');
+      
+      // Try to access the JAccount login page directly
+      try {
+        const jaccountUrl = 'https://jaccount.sjtu.edu.cn/jaccount/jalogin?sid=jaoauth220160718&client=test&returl=test&se=test';
+        const jaccountResponse = await fetch(jaccountUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cookie': jsessionid ? `JSESSIONID=${jsessionid}` : '',
+          },
+        });
+
+        if (jaccountResponse.ok) {
+          const jaccountHtml = await jaccountResponse.text();
+          console.log('[Auto-Login] Retrieved JAccount login page');
+
+          // Extract login context from JAccount page
+          const loginContextMatch = jaccountHtml.match(/var loginContext = \{[\s\S]*?\};/);
+          let captchaUuid = '';
+          let sid = '';
+          let client = '';
+          let returl = '';
+          let se = '';
+          let v = '';
+          
+          if (loginContextMatch) {
+            const contextStr = loginContextMatch[1];
+            console.log('[Auto-Login] Found loginContext object');
+            
+            // Extract parameters from loginContext object
+            const uuidMatch = contextStr.match(/uuid:\s*"([^"]+)"/);
+            const sidMatch = contextStr.match(/sid:\s*"([^"]+)"/);
+            const clientMatch = contextStr.match(/client:\s*"([^"]+)"/);
+            const returlMatch = contextStr.match(/returl:\s*"([^"]+)"/);
+            const seMatch = contextStr.match(/se:\s*"([^"]+)"/);
+            const vMatch = contextStr.match(/v:\s*"([^"]*)"/);
+            
+            captchaUuid = uuidMatch ? uuidMatch[1] : '';
+            sid = sidMatch ? sidMatch[1] : '';
+            client = clientMatch ? clientMatch[1] : '';
+            returl = returlMatch ? returlMatch[1] : '';
+            se = seMatch ? seMatch[1] : '';
+            v = vMatch ? vMatch[1] : '';
+          }
+          
+          if (captchaUuid) {
+            const timestamp = Date.now();
+            const fullCaptchaUrl = `https://jaccount.sjtu.edu.cn/jaccount/captcha?uuid=${captchaUuid}&t=${timestamp}`;
+            
+            console.log(`[Auto-Login] Captcha UUID: ${captchaUuid}`);
+            console.log(`[Auto-Login] Captcha URL: ${fullCaptchaUrl}`);
+            
+            // Get captcha image
+            const captchaResponse = await fetch(fullCaptchaUrl, {
+              method: 'GET',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'image',
+                'Sec-Fetch-Mode': 'no-cors',
+                'Sec-Fetch-Site': 'same-origin',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Cookie': jsessionid ? `JSESSIONID=${jsessionid}` : '',
+              },
+            });
+
+            let captchaImage = null;
+            if (captchaResponse.ok) {
+              const captchaBuffer = await captchaResponse.arrayBuffer();
+              const captchaBase64 = Buffer.from(captchaBuffer).toString('base64');
+              captchaImage = `data:image/png;base64,${captchaBase64}`;
+              console.log('[Auto-Login] Captcha image retrieved successfully');
+            } else {
+              console.log(`[Auto-Login] Failed to get captcha image: ${captchaResponse.status}`);
+            }
+
+            return NextResponse.json({
+              success: false,
+              requiresCaptcha: true,
+              captchaImage: captchaImage,
+              captchaUrl: fullCaptchaUrl,
+              captchaUuid: captchaUuid,
+              jsessionid: jsessionid,
+              jaccountUrl: jaccountUrl,
+              loginContext: {
+                sid: sid,
+                client: client,
+                returl: returl,
+                se: se,
+                v: v,
+                uuid: captchaUuid
+              },
+              message: '请输入验证码'
+            });
+          } else {
+            throw new Error('Failed to extract captcha UUID from JAccount page');
+          }
+        } else {
+          throw new Error(`Failed to get JAccount login page: ${jaccountResponse.status}`);
+        }
+      } catch (jaccountError) {
+        console.error('[Auto-Login] JAccount flow failed:', jaccountError);
+        throw new Error('Failed to proceed to JAccount login flow');
       }
     }
   } catch (error) {
