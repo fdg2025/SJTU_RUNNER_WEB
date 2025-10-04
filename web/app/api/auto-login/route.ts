@@ -924,101 +924,32 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      // 如果目标页面没有返回新的JSESSIONID，我们需要通过其他方式获取
+      // 强制要求JSESSIONID必须来自目标页面
       if (!targetJsessionidMatch || !targetJsessionidMatch[1]) {
-        console.log('[Auto-Login] Target page did not return JSESSIONID, making additional request to get it');
+        console.log('[Auto-Login] ❌ Target page did not return JSESSIONID - this is required!');
+        console.log('[Auto-Login] ❌ Target page URL: https://pe.sjtu.edu.cn/phone/#/indexPortrait');
+        console.log('[Auto-Login] ❌ Target page response status:', targetPageResponse.status);
+        console.log('[Auto-Login] ❌ Target page Set-Cookie:', targetSetCookie || 'None');
         
-        // 尝试访问其他可能返回JSESSIONID的端点
-        const additionalUrls = [
-          'https://pe.sjtu.edu.cn/phone/',
-          'https://pe.sjtu.edu.cn/phone/api/uid',
-          'https://pe.sjtu.edu.cn/sports/my/uid',
-          'https://pe.sjtu.edu.cn/sports/my/data', // 尝试这个端点
-          'https://pe.sjtu.edu.cn/api/running/point-rule' // 尝试这个端点
-        ];
-        
-        // 同时尝试不同的Cookie组合
-        const cookieVariants = [
-          accumulatedCookies, // 使用累积的Cookie
-          `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`, // 使用当前的组合
-          `JSESSIONID=${newJsessionid}; keepalive='${keepalive}`, // 调换顺序
-        ];
-        
-        for (const url of additionalUrls) {
-          for (const cookieVariant of cookieVariants) {
-            console.log(`[Auto-Login] Trying additional URL: ${url} with cookie variant: ${cookieVariant.substring(0, 50)}...`);
-            
-            const additionalResponse = await fetch(url, {
-              method: 'GET',
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-                'Cookie': cookieVariant,
-              },
-              redirect: 'manual',
-            });
-            
-            console.log(`[Auto-Login] Additional URL response status: ${additionalResponse.status}`);
-            
-            const additionalSetCookie = additionalResponse.headers.get('set-cookie');
-            if (additionalSetCookie) {
-              console.log('[Auto-Login] Additional URL Set-Cookie:', additionalSetCookie);
-              
-              // 检查是否有JSESSIONID
-              const additionalJsessionidMatch = additionalSetCookie.match(/JSESSIONID=([^;]+)/);
-              if (additionalJsessionidMatch) {
-                const candidateJsessionid = additionalJsessionidMatch[1];
-                console.log('[Auto-Login] Found JSESSIONID candidate from additional URL:', url);
-                console.log('[Auto-Login] JSESSIONID value:', candidateJsessionid);
-                console.log('[Auto-Login] Cookie variant used:', cookieVariant.substring(0, 100) + '...');
-                
-                // 检查JSESSIONID格式 - 优先选择UUID格式的JSESSIONID
-                const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                const isUuidFormat = uuidPattern.test(candidateJsessionid);
-                const isJaccountFormat = candidateJsessionid.includes('.jaccount');
-                
-                console.log('[Auto-Login] JSESSIONID format analysis:', {
-                  value: candidateJsessionid,
-                  isUuidFormat: isUuidFormat,
-                  isJaccountFormat: isJaccountFormat
-                });
-                
-                // 优先选择UUID格式的JSESSIONID
-                if (isUuidFormat) {
-                  newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] ✅ SELECTED UUID format JSESSIONID from URL:', url);
-                  console.log('[Auto-Login] ✅ Final JSESSIONID:', newJsessionid);
-                  break; // 找到UUID格式的JSESSIONID就停止
-                } else if (!isJaccountFormat && !newJsessionid.includes('.jaccount')) {
-                  // 如果不是JAccount格式且当前也不是JAccount格式，则使用这个
-                  newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] ⚠️ SELECTED non-JAccount format JSESSIONID from URL:', url);
-                  console.log('[Auto-Login] ⚠️ Final JSESSIONID:', newJsessionid);
-                } else if (isJaccountFormat && newJsessionid.includes('.jaccount')) {
-                  // 如果都是JAccount格式，选择较新的
-                  newJsessionid = candidateJsessionid;
-                  console.log('[Auto-Login] ⚠️ SELECTED JAccount format JSESSIONID from URL:', url);
-                  console.log('[Auto-Login] ⚠️ Final JSESSIONID:', newJsessionid);
-                }
-              }
-            }
-          }
-          // 如果找到了UUID格式的JSESSIONID，立即停止所有搜索
-          if (newJsessionid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid)) {
-            console.log('[Auto-Login] Found UUID format JSESSIONID, stopping search:', newJsessionid);
-            break;
-          }
-          if (newJsessionid !== jsessionid) {
-            break; // 如果找到了新的JSESSIONID就停止
-          }
-        }
+        throw new Error('目标页面 https://pe.sjtu.edu.cn/phone/#/indexPortrait 未返回JSESSIONID，这是必需的！');
       }
+      
+      console.log('[Auto-Login] ✅ Target page returned JSESSIONID:', newJsessionid);
+      console.log('[Auto-Login] ✅ Target page URL: https://pe.sjtu.edu.cn/phone/#/indexPortrait');
+      
+      // 验证JSESSIONID格式
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuidFormat = uuidPattern.test(newJsessionid);
+      const isJaccountFormat = newJsessionid.includes('.jaccount');
+      
+      console.log('[Auto-Login] JSESSIONID format analysis:', {
+        value: newJsessionid,
+        isUuidFormat: isUuidFormat,
+        isJaccountFormat: isJaccountFormat,
+        source: 'https://pe.sjtu.edu.cn/phone/#/indexPortrait'
+      });
+      
+      // JSESSIONID必须来自目标页面，不再尝试其他端点
       
       // 使用目标页面的响应作为最终响应
       finalResponse = targetPageResponse;
