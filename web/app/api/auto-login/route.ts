@@ -878,6 +878,8 @@ export async function PUT(request: NextRequest) {
       
       // 无论前面的重定向结果如何，都要访问正确的目标页面获取最终Cookie
       console.log('[Auto-Login] Making final request to correct target page: https://pe.sjtu.edu.cn/phone/#/indexPortrait');
+      console.log('[Auto-Login] Using accumulated cookies for target page:', accumulatedCookies);
+      
       const targetPageResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
         method: 'GET',
         headers: {
@@ -917,6 +919,65 @@ export async function PUT(request: NextRequest) {
         if (targetJsessionidMatch) {
           newJsessionid = targetJsessionidMatch[1];
           console.log('[Auto-Login] Target page JSESSIONID:', newJsessionid);
+        }
+      }
+      
+      // 如果目标页面没有返回新的JSESSIONID，我们需要通过其他方式获取
+      if (!targetJsessionidMatch || !targetJsessionidMatch[1]) {
+        console.log('[Auto-Login] Target page did not return JSESSIONID, making additional request to get it');
+        
+        // 尝试访问其他可能返回JSESSIONID的端点
+        const additionalUrls = [
+          'https://pe.sjtu.edu.cn/phone/',
+          'https://pe.sjtu.edu.cn/phone/api/uid',
+          'https://pe.sjtu.edu.cn/sports/my/uid'
+        ];
+        
+        // 同时尝试不同的Cookie组合
+        const cookieVariants = [
+          accumulatedCookies, // 使用累积的Cookie
+          `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`, // 使用当前的组合
+          `JSESSIONID=${newJsessionid}; keepalive='${keepalive}`, // 调换顺序
+        ];
+        
+        for (const url of additionalUrls) {
+          for (const cookieVariant of cookieVariants) {
+            console.log(`[Auto-Login] Trying additional URL: ${url} with cookie variant: ${cookieVariant.substring(0, 50)}...`);
+            
+            const additionalResponse = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Cookie': cookieVariant,
+              },
+              redirect: 'manual',
+            });
+            
+            console.log(`[Auto-Login] Additional URL response status: ${additionalResponse.status}`);
+            
+            const additionalSetCookie = additionalResponse.headers.get('set-cookie');
+            if (additionalSetCookie) {
+              console.log('[Auto-Login] Additional URL Set-Cookie:', additionalSetCookie);
+              
+              // 检查是否有JSESSIONID
+              const additionalJsessionidMatch = additionalSetCookie.match(/JSESSIONID=([^;]+)/);
+              if (additionalJsessionidMatch) {
+                newJsessionid = additionalJsessionidMatch[1];
+                console.log('[Auto-Login] Found JSESSIONID from additional URL:', newJsessionid);
+                break; // 找到JSESSIONID就停止
+              }
+            }
+          }
+          if (newJsessionid !== jsessionid) {
+            break; // 如果找到了新的JSESSIONID就停止
+          }
         }
       }
       
