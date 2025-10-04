@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Always proceed to JAccount flow regardless of keepalive cookie presence
-    // The keepalive cookie doesn't guarantee actual login status
-    console.log('[Auto-Login] Proceeding to JAccount login flow to verify actual login status');
+    // The keepalive cookie is a fixed IP binding identifier, not a login status indicator
+    // Always proceed to JAccount flow to verify actual login status
+    console.log('[Auto-Login] keepalive cookie is IP binding identifier, proceeding to JAccount flow');
     
-    // If not logged in, check for JAccount redirect
+    // Check for JAccount redirect to verify actual login status
     if (phoneResponse.status === 302 || phoneResponse.status === 301) {
       const location = phoneResponse.headers.get('location');
       console.log(`[Auto-Login] Redirect to: ${location}`);
@@ -216,53 +216,47 @@ export async function POST(request: NextRequest) {
         throw new Error('Unexpected redirect location');
       }
     } else {
-      // No redirect detected, but we still need to verify actual login status
-      console.log('[Auto-Login] No redirect detected, but keepalive cookie may not indicate real login');
+      // No redirect detected - this means we're already on the phone page
+      // Since keepalive is just an IP binding identifier, we need to check if we can access protected content
+      console.log('[Auto-Login] No redirect detected, checking if we can access protected content');
       
-      // Check if we can access protected content to verify actual login status
+      // Try to access a protected endpoint to verify actual login status
       try {
-        const testResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
+        const protectedResponse = await fetch('https://pe.sjtu.edu.cn/api/user/info', {
           method: 'GET',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
             'Cookie': jsessionid ? `JSESSIONID=${jsessionid}` : '',
           },
           redirect: 'manual',
         });
         
-        if (testResponse.status === 302 || testResponse.status === 301) {
-          const testLocation = testResponse.headers.get('location');
-          if (testLocation && testLocation.includes('jaccount.sjtu.edu.cn')) {
-            console.log('[Auto-Login] Test request confirms need for JAccount login');
-            throw new Error('Actual login required, proceeding to JAccount flow');
-          }
-        }
-        
-        // If we reach here, we might actually be logged in
-        if (setCookieHeader) {
-          const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
-          const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
+        if (protectedResponse.status === 200) {
+          // Successfully accessed protected content, we're actually logged in
+          console.log('[Auto-Login] Successfully accessed protected content, user is logged in');
           
-          if (keepalive) {
-            const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
-            console.log('[Auto-Login] Verified actual login status, returning cookies');
+          if (setCookieHeader) {
+            const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+            const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
             
-            return NextResponse.json({
-              success: true,
-              cookie: fullCookie,
-              message: '自动登录成功，Cookie已获取'
-            });
+            if (keepalive) {
+              const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
+              
+              return NextResponse.json({
+                success: true,
+                cookie: fullCookie,
+                message: '自动登录成功，Cookie已获取'
+              });
+            }
           }
+        } else {
+          console.log('[Auto-Login] Cannot access protected content, need JAccount login');
+          throw new Error('Need JAccount login to access protected content');
         }
-        
-        throw new Error('Unable to verify login status');
-      } catch (testError) {
-        console.log('[Auto-Login] Test request failed, proceeding to JAccount flow');
+      } catch (protectedError) {
+        console.log('[Auto-Login] Protected content check failed, proceeding to JAccount flow');
         throw new Error('Need to proceed to JAccount login flow');
       }
     }
