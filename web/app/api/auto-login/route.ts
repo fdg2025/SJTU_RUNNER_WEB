@@ -876,10 +876,9 @@ export async function PUT(request: NextRequest) {
       
       console.log(`[Auto-Login] Final response status: ${finalResponse.status}`);
       
-      // 无论前面的重定向结果如何，都要访问正确的目标页面获取最终Cookie
-      // 根据网络日志分析，应该访问 phone/ 而不是 phone/#/indexPortrait
-      console.log('[Auto-Login] Making final request to correct target page: https://pe.sjtu.edu.cn/phone/');
-      console.log('[Auto-Login] Using accumulated cookies for target page:', accumulatedCookies);
+      // 直接从已知的端点获取JSESSIONID
+      console.log('[Auto-Login] Making request to JSESSIONID source: https://pe.sjtu.edu.cn/sports/my/uid');
+      console.log('[Auto-Login] Using accumulated cookies:', accumulatedCookies);
       
       // 详细分析发送给目标页面的Cookie
       console.log('[Auto-Login] 🔍 Request Cookie analysis:');
@@ -909,7 +908,7 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      const targetPageResponse = await fetch('https://pe.sjtu.edu.cn/phone/', {
+      const targetPageResponse = await fetch('https://pe.sjtu.edu.cn/sports/my/uid', {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -974,9 +973,9 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      // 详细分析目标页面的Cookie情况
-      console.log('[Auto-Login] 🔍 Target page Cookie analysis:');
-      console.log('[Auto-Login] 🔍 Target page URL: https://pe.sjtu.edu.cn/phone/');
+      // 详细分析JSESSIONID获取端点的Cookie情况
+      console.log('[Auto-Login] 🔍 JSESSIONID endpoint Cookie analysis:');
+      console.log('[Auto-Login] 🔍 JSESSIONID endpoint URL: https://pe.sjtu.edu.cn/sports/my/uid');
       console.log('[Auto-Login] 🔍 Response status:', targetPageResponse.status);
       console.log('[Auto-Login] 🔍 All response headers:');
       targetPageResponse.headers.forEach((value, key) => {
@@ -1094,14 +1093,14 @@ export async function PUT(request: NextRequest) {
       
       // 检查是否真的没有JSESSIONID
       if (!targetJsessionidMatch || !targetJsessionidMatch[1]) {
-        console.log('[Auto-Login] ❌ Target page did not return JSESSIONID - this is required!');
-        console.log('[Auto-Login] ❌ Target page URL: https://pe.sjtu.edu.cn/phone/');
+        console.log('[Auto-Login] ❌ JSESSIONID endpoint did not return JSESSIONID - this is required!');
+        console.log('[Auto-Login] ❌ JSESSIONID endpoint URL: https://pe.sjtu.edu.cn/sports/my/uid');
         console.log('[Auto-Login] ❌ Target page response status:', targetPageResponse.status);
         console.log('[Auto-Login] ❌ Target page Set-Cookie:', targetSetCookie || 'None');
         
         // 分析为什么没有找到正确的JSESSIONID
         console.log('[Auto-Login] 🔍 Analysis of missing JSESSIONID:');
-        console.log('[Auto-Login] 🔍 Target page URL: https://pe.sjtu.edu.cn/phone/');
+        console.log('[Auto-Login] 🔍 JSESSIONID endpoint URL: https://pe.sjtu.edu.cn/sports/my/uid');
         console.log('[Auto-Login] 🔍 Expected domain: pe.sjtu.edu.cn');
         console.log('[Auto-Login] 🔍 Actual Set-Cookie:', targetSetCookie);
         
@@ -1124,7 +1123,7 @@ export async function PUT(request: NextRequest) {
           targetJsessionidMatch = ['JSESSIONID=' + jsessionid, jsessionid];
         } else {
           // 尝试访问其他可能返回pe.sjtu.edu.cn JSESSIONID的端点
-          console.log('[Auto-Login] 🔄 Target page did not return JSESSIONID, trying alternative endpoints for pe.sjtu.edu.cn JSESSIONID');
+          console.log('[Auto-Login] 🔄 JSESSIONID endpoint did not return JSESSIONID, trying alternative endpoints for pe.sjtu.edu.cn JSESSIONID');
           
           const alternativeUrls = [
             'https://pe.sjtu.edu.cn/phone/user',  // 用户信息请求 - 最可能返回JSESSIONID
@@ -1189,7 +1188,7 @@ export async function PUT(request: NextRequest) {
             throw new Error(`无法从任何端点获取pe.sjtu.edu.cn域名的JSESSIONID！
             
 分析结果:
-- 目标页面: https://pe.sjtu.edu.cn/phone/ (未返回JSESSIONID)
+- JSESSIONID端点: https://pe.sjtu.edu.cn/sports/my/uid (未返回JSESSIONID)
 - 尝试的端点: ${alternativeUrls.join(', ')}
 - 期望域名: pe.sjtu.edu.cn
 - 当前JSESSIONID: ${jsessionid || '无'} (JAccount格式，已拒绝)
@@ -1199,8 +1198,9 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      console.log('[Auto-Login] ✅ Target page returned JSESSIONID:', newJsessionid);
-      console.log('[Auto-Login] ✅ Target page URL: https://pe.sjtu.edu.cn/phone/');
+      console.log('[Auto-Login] ✅ Successfully obtained JSESSIONID:', newJsessionid);
+      console.log('[Auto-Login] ✅ JSESSIONID source: https://pe.sjtu.edu.cn/sports/my/uid');
+      console.log('[Auto-Login] ✅ Final JSESSIONID endpoint: https://pe.sjtu.edu.cn/sports/my/uid');
       
       // 验证JSESSIONID格式
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1211,7 +1211,7 @@ export async function PUT(request: NextRequest) {
         value: newJsessionid,
         isUuidFormat: isUuidFormat,
         isJaccountFormat: isJaccountFormat,
-        source: 'https://pe.sjtu.edu.cn/phone/'
+        source: 'https://pe.sjtu.edu.cn/sports/my/uid'
       });
       
       // JSESSIONID必须来自目标页面，不再尝试其他端点
