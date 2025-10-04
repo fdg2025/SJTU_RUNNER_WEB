@@ -354,6 +354,14 @@ export async function POST(request: NextRequest) {
               console.log(`[Auto-Login] Failed to get captcha image: ${captchaResponse.status}`);
             }
 
+            // 调试信息
+            console.log('[Auto-Login] 返回验证码响应:', {
+              jsessionid: jsessionid ? jsessionid.substring(0, 20) + '...' : 'empty',
+              jaccountUrl: jaccountUrl ? 'exists' : 'empty',
+              captchaUuid: captchaUuid ? captchaUuid.substring(0, 8) + '...' : 'empty',
+              loginContext: 'exists'
+            });
+            
             return NextResponse.json({
               success: false,
               requiresCaptcha: true,
