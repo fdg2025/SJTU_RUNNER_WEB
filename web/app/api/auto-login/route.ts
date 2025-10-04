@@ -1036,12 +1036,22 @@ export async function PUT(request: NextRequest) {
                   console.log('[Auto-Login] ⚠️ JSESSIONID domain is not pe.sjtu.edu.cn:', domain);
                 }
               } else {
-                // 如果没有明确的Domain设置，默认为当前域名
-                console.log('[Auto-Login] ✅ JSESSIONID has no explicit domain (defaults to pe.sjtu.edu.cn)');
-                foundJsessionid = true;
-                targetJsessionidMatch = match;
-                newJsessionid = match[1];
-                break;
+                // 如果没有明确的Domain设置，需要检查JSESSIONID的格式来判断来源
+                const jsessionidValue = match[1];
+                console.log('[Auto-Login] 🔍 JSESSIONID has no explicit domain, checking format:', jsessionidValue);
+                
+                // 检查是否是JAccount格式的JSESSIONID (包含.jaccount)
+                if (jsessionidValue.includes('.jaccount')) {
+                  console.log('[Auto-Login] ❌ JSESSIONID is from jaccount.sjtu.edu.cn (contains .jaccount):', jsessionidValue);
+                  console.log('[Auto-Login] ❌ Rejecting jaccount JSESSIONID, need pe.sjtu.edu.cn JSESSIONID');
+                } else {
+                  // 如果不是JAccount格式，可能是pe.sjtu.edu.cn的JSESSIONID
+                  console.log('[Auto-Login] ✅ JSESSIONID appears to be from pe.sjtu.edu.cn (no .jaccount):', jsessionidValue);
+                  foundJsessionid = true;
+                  targetJsessionidMatch = match;
+                  newJsessionid = match[1];
+                  break;
+                }
               }
             }
           }
@@ -1068,16 +1078,39 @@ export async function PUT(request: NextRequest) {
         console.log('[Auto-Login] ❌ Target page response status:', targetPageResponse.status);
         console.log('[Auto-Login] ❌ Target page Set-Cookie:', targetSetCookie || 'None');
         
-        // 尝试使用现有的JSESSIONID作为备选方案
+        // 分析为什么没有找到正确的JSESSIONID
+        console.log('[Auto-Login] 🔍 Analysis of missing JSESSIONID:');
+        console.log('[Auto-Login] 🔍 Target page URL: https://pe.sjtu.edu.cn/phone/');
+        console.log('[Auto-Login] 🔍 Expected domain: pe.sjtu.edu.cn');
+        console.log('[Auto-Login] 🔍 Actual Set-Cookie:', targetSetCookie);
+        
+        // 检查是否有JAccount格式的JSESSIONID被拒绝了
+        if (targetSetCookie && targetSetCookie.includes('.jaccount')) {
+          console.log('[Auto-Login] 🔍 Found JAccount JSESSIONID in response but rejected it');
+          const jaccountMatch = targetSetCookie.match(/JSESSIONID=([^;,\s]+\.jaccount[^;,\s]*)/i);
+          if (jaccountMatch) {
+            console.log('[Auto-Login] 🔍 Rejected JAccount JSESSIONID:', jaccountMatch[1]);
+          }
+        }
+        
+        // 尝试使用现有的JSESSIONID作为备选方案，但必须是pe.sjtu.edu.cn格式
         console.log('[Auto-Login] 🔄 Attempting to use existing JSESSIONID as fallback');
         console.log('[Auto-Login] 🔄 Current JSESSIONID from redirect chain:', jsessionid);
         
-        if (jsessionid && jsessionid.length > 10) {
-          console.log('[Auto-Login] 🔄 Using existing JSESSIONID as fallback:', jsessionid);
+        if (jsessionid && jsessionid.length > 10 && !jsessionid.includes('.jaccount')) {
+          console.log('[Auto-Login] 🔄 Using existing non-JAccount JSESSIONID as fallback:', jsessionid);
           newJsessionid = jsessionid;
           targetJsessionidMatch = ['JSESSIONID=' + jsessionid, jsessionid];
         } else {
-          throw new Error('目标页面 https://pe.sjtu.edu.cn/phone/ 未返回JSESSIONID，且没有可用的备用JSESSIONID！');
+          throw new Error(`目标页面 https://pe.sjtu.edu.cn/phone/ 未返回pe.sjtu.edu.cn域名的JSESSIONID！
+          
+分析结果:
+- 目标页面: https://pe.sjtu.edu.cn/phone/
+- 期望域名: pe.sjtu.edu.cn
+- 实际响应: ${targetSetCookie || '无Set-Cookie头部'}
+- 当前JSESSIONID: ${jsessionid || '无'}
+
+请确保访问正确的目标页面以获取pe.sjtu.edu.cn域名的JSESSIONID。`);
         }
       }
       
