@@ -607,10 +607,17 @@ export async function PUT(request: NextRequest) {
       let accumulatedCookies = '';
       let finalResponse;
       
-      // Start with original keepalive if available
+      // Start with JAccount JSESSIONID and original keepalive if available
+      if (jsessionid) {
+        accumulatedCookies = `JSESSIONID=${jsessionid}`;
+        console.log('[Auto-Login] Starting with JAccount JSESSIONID:', jsessionid.substring(0, 20) + '...');
+      }
       if (originalKeepalive) {
-        accumulatedCookies = `keepalive='${originalKeepalive}`;
-        console.log('[Auto-Login] Starting with original keepalive cookie');
+        if (accumulatedCookies) {
+          accumulatedCookies += '; ';
+        }
+        accumulatedCookies += `keepalive='${originalKeepalive}`;
+        console.log('[Auto-Login] Added original keepalive cookie');
       }
       
       while (redirectCount < maxRedirects) {
@@ -628,7 +635,7 @@ export async function PUT(request: NextRequest) {
             'Upgrade-Insecure-Requests': '1',
             'Sec-Fetch-Dest': 'document',
             'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-Site': 'cross-site',
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
@@ -648,14 +655,24 @@ export async function PUT(request: NextRequest) {
           console.log('[Auto-Login] Redirect Set-Cookie:', redirectSetCookie);
           
           // Accumulate cookies for next request
+          // Handle multiple Set-Cookie headers by splitting on comma
           const newCookies = redirectSetCookie.split(',').map(cookie => cookie.trim());
           for (const cookie of newCookies) {
             const cookieNameValue = cookie.split(';')[0].trim();
             if (cookieNameValue) {
-              if (accumulatedCookies) {
-                accumulatedCookies += '; ';
+              // Check if this cookie already exists in accumulatedCookies
+              const cookieName = cookieNameValue.split('=')[0];
+              if (accumulatedCookies.includes(cookieName + '=')) {
+                // Replace existing cookie
+                const cookieRegex = new RegExp(`${cookieName}=[^;]+`, 'g');
+                accumulatedCookies = accumulatedCookies.replace(cookieRegex, cookieNameValue);
+              } else {
+                // Add new cookie
+                if (accumulatedCookies) {
+                  accumulatedCookies += '; ';
+                }
+                accumulatedCookies += cookieNameValue;
               }
-              accumulatedCookies += cookieNameValue;
             }
           }
           
@@ -691,7 +708,9 @@ export async function PUT(request: NextRequest) {
             if (nextLocation.startsWith('http')) {
               currentUrl = nextLocation;
             } else if (nextLocation.startsWith('/')) {
-              currentUrl = `https://pe.sjtu.edu.cn${nextLocation}`;
+              // Use current domain for absolute paths
+              const urlObj = new URL(currentUrl);
+              currentUrl = `${urlObj.protocol}//${urlObj.host}${nextLocation}`;
             } else {
               // Relative path, append to current URL
               const urlObj = new URL(currentUrl);
@@ -713,48 +732,78 @@ export async function PUT(request: NextRequest) {
       }
       
       // If we didn't get UUID format JSESSIONID, make one more request to the final URL
-      if (!keepalive || !newJsessionid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid)) {
+      const hasUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid);
+      console.log('[Auto-Login] UUID format check:', {
+        hasKeepalive: !!keepalive,
+        hasJsessionid: !!newJsessionid,
+        isUuidFormat: hasUuidFormat,
+        jsessionidValue: newJsessionid
+      });
+      
+      if (!hasUuidFormat) {
         console.log('[Auto-Login] Making final request to pe.sjtu.edu.cn/phone/ to get correct cookies');
+        console.log('[Auto-Login] Current accumulatedCookies:', accumulatedCookies);
         
-        finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/', {
-          method: 'GET',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Cookie': accumulatedCookies,
-          },
-          redirect: 'manual',
-        });
+        // Try multiple final URLs to ensure we get the correct cookies
+        const finalUrls = [
+          'https://pe.sjtu.edu.cn/phone/',
+          'https://pe.sjtu.edu.cn/phone/#/indexPortrait',
+          'https://pe.sjtu.edu.cn/phone/#/'
+        ];
         
-        console.log(`[Auto-Login] Final request response status: ${finalResponse.status}`);
-        
-        // Extract cookies from final request
-        const finalSetCookie = finalResponse.headers.get('set-cookie');
-        if (finalSetCookie) {
-          console.log('[Auto-Login] Final request Set-Cookie:', finalSetCookie);
+        for (const finalUrl of finalUrls) {
+          console.log(`[Auto-Login] Trying final URL: ${finalUrl}`);
+          console.log(`[Auto-Login] Using cookies: ${accumulatedCookies}`);
           
-          // Extract keepalive from final response
-          const finalKeepaliveMatch = finalSetCookie.match(/keepalive=([^;]+)/);
-          if (finalKeepaliveMatch) {
-            keepalive = finalKeepaliveMatch[1].replace(/^'|'$/g, '');
-            console.log('[Auto-Login] Final keepalive:', keepalive.substring(0, 20) + '...');
-          }
+          finalResponse = await fetch(finalUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Connection': 'keep-alive',
+              'Upgrade-Insecure-Requests': '1',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'cross-site',
+              'Sec-Fetch-User': '?1',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Cookie': accumulatedCookies,
+            },
+            redirect: 'manual',
+          });
           
-          // Extract JSESSIONID from final response
-          const finalJsessionidMatch = finalSetCookie.match(/JSESSIONID=([^;]+)/);
-          if (finalJsessionidMatch) {
-            newJsessionid = finalJsessionidMatch[1];
-            console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
+          console.log(`[Auto-Login] Final request response status: ${finalResponse.status}`);
+          
+          // Extract cookies from final request
+          const finalSetCookie = finalResponse.headers.get('set-cookie');
+          if (finalSetCookie) {
+            console.log('[Auto-Login] Final request Set-Cookie:', finalSetCookie);
+            
+            // Extract keepalive from final response
+            const finalKeepaliveMatch = finalSetCookie.match(/keepalive=([^;]+)/);
+            if (finalKeepaliveMatch) {
+              keepalive = finalKeepaliveMatch[1].replace(/^'|'$/g, '');
+              console.log('[Auto-Login] Final keepalive:', keepalive.substring(0, 20) + '...');
+            }
+            
+            // Extract JSESSIONID from final response
+            const finalJsessionidMatch = finalSetCookie.match(/JSESSIONID=([^;]+)/);
+            if (finalJsessionidMatch) {
+              newJsessionid = finalJsessionidMatch[1];
+              console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
+              
+              // Check if this is the UUID format we want
+              const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+              if (uuidPattern.test(newJsessionid)) {
+                console.log('[Auto-Login] Found UUID format JSESSIONID in final request - SUCCESS!');
+                break; // We found the correct format, stop trying other URLs
+              } else {
+                console.log('[Auto-Login] JSESSIONID is still not UUID format, trying next URL...');
+              }
+            }
           }
         }
       }
@@ -828,11 +877,15 @@ export async function PUT(request: NextRequest) {
         finalResponseStatus: finalResponse ? finalResponse.status : 'undefined'
       });
 
-      if (keepalive && newJsessionid) {
+      // Check if we have the correct UUID format JSESSIONID
+      const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid);
+      
+      if (keepalive && newJsessionid && isUuidFormat) {
         const finalCookie = `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`;
-        console.log(`[Auto-Login] Successfully obtained cookie for user: ${username}`);
+        console.log(`[Auto-Login] Successfully obtained correct cookie for user: ${username}`);
         console.log(`[Auto-Login] keepalive: ${keepalive.substring(0, 20)}...`);
         console.log(`[Auto-Login] JSESSIONID: ${newJsessionid.substring(0, 20)}...`);
+        console.log(`[Auto-Login] JSESSIONID is UUID format: ${isUuidFormat}`);
         
         return NextResponse.json({
           success: true,
@@ -840,24 +893,14 @@ export async function PUT(request: NextRequest) {
           message: '自动登录成功，Cookie已获取'
         });
       } else {
-        console.log('[Auto-Login] Cookie 提取失败:', {
-          keepalive: !!keepalive,
-          newJsessionid: !!newJsessionid
+        console.log('[Auto-Login] Cookie 提取失败或格式不正确:', {
+          hasKeepalive: !!keepalive,
+          hasJsessionid: !!newJsessionid,
+          isUuidFormat: isUuidFormat,
+          jsessionidValue: newJsessionid
         });
         
-        // 备用方案：如果 keepalive 获取失败，返回 JSESSIONID
-        if (newJsessionid) {
-          const fallbackCookie = `JSESSIONID=${newJsessionid}`;
-          console.log(`[Auto-Login] Using fallback cookie: ${fallbackCookie}`);
-          
-          return NextResponse.json({
-            success: true,
-            cookie: fallbackCookie,
-            message: '自动登录成功，已获取JSESSIONID（keepalive获取失败）'
-          });
-        }
-        
-        throw new Error('无法获取keepalive Cookie');
+        throw new Error(`Cookie格式不正确: keepalive=${!!keepalive}, JSESSIONID=${!!newJsessionid}, UUID格式=${isUuidFormat}`);
       }
     } else {
       // Login failed
