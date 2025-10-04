@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, EyeOff, LogIn, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface AutoLoginFormProps {
@@ -23,6 +23,8 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
   const [jaccountUrl, setJaccountUrl] = useState('');
   const [loginContext, setLoginContext] = useState<any>(null);
   const [requiresCaptcha, setRequiresCaptcha] = useState(false);
+  const [captchaTimestamp, setCaptchaTimestamp] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +65,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
           setJaccountUrl(data.jaccountUrl);
           setLoginContext(data.loginContext);
           setRequiresCaptcha(true);
+          setCaptchaTimestamp(Date.now());
           setError('请输入验证码');
           return;
         } else {
@@ -116,10 +119,11 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
           setJsessionid('');
           setJaccountUrl('');
           setLoginContext(null);
+          setCaptchaTimestamp(null);
         } else {
           setError(data.error || '自动登录失败');
           // 如果验证码错误，重新获取验证码
-          if (data.error && (data.error.includes('验证码') || data.error.includes('keepalive'))) {
+          if (data.error && (data.error.includes('验证码') || data.error.includes('keepalive')) || data.requiresNewCaptcha) {
             setRequiresCaptcha(false);
             setCaptcha('');
             setCaptchaImage('');
@@ -128,6 +132,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
             setJsessionid('');
             setJaccountUrl('');
             setLoginContext(null);
+            setCaptchaTimestamp(null);
             setError('验证码已过期，请重新获取验证码');
           }
         }
@@ -141,6 +146,95 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
       setIsLoading(false);
     }
   };
+
+  const refreshCaptcha = async () => {
+    if (!username.trim() || !password.trim()) {
+      setError('请输入用户名和密码');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const authToken = localStorage.getItem('auth-token');
+      if (!authToken) {
+        throw new Error('请先登录系统');
+      }
+
+      const response = await fetch('/api/auto-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.requiresCaptcha && data.captchaImage) {
+        setCaptchaImage(data.captchaImage);
+        setCaptchaUrl(data.captchaUrl);
+        setCaptchaUuid(data.captchaUuid);
+        setJsessionid(data.jsessionid);
+        setJaccountUrl(data.jaccountUrl);
+        setLoginContext(data.loginContext);
+        setCaptchaTimestamp(Date.now());
+        setCaptcha('');
+        setError('验证码已刷新，请重新输入');
+      } else {
+        setError(data.error || '刷新验证码失败');
+      }
+    } catch (error) {
+      console.error('Refresh captcha error:', error);
+      setError(error instanceof Error ? error.message : '刷新验证码时发生错误');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 检查验证码是否过期（5分钟）
+  const isCaptchaExpired = captchaTimestamp && (Date.now() - captchaTimestamp > 5 * 60 * 1000);
+
+  // 验证码倒计时
+  useEffect(() => {
+    if (!captchaTimestamp || !requiresCaptcha) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const updateTimeLeft = () => {
+      const elapsed = Date.now() - captchaTimestamp;
+      const remaining = Math.max(0, 5 * 60 * 1000 - elapsed);
+      setTimeLeft(remaining);
+      
+      if (remaining <= 0) {
+        setTimeLeft(null);
+      }
+    };
+
+    updateTimeLeft();
+    const interval = setInterval(updateTimeLeft, 1000);
+
+    return () => clearInterval(interval);
+  }, [captchaTimestamp, requiresCaptcha]);
+
+  // 自动刷新验证码（当验证码即将过期时）
+  useEffect(() => {
+    if (!captchaTimestamp || !requiresCaptcha) return;
+
+    const timeUntilExpiry = 5 * 60 * 1000 - (Date.now() - captchaTimestamp);
+    const warningTime = 4 * 60 * 1000; // 4分钟后开始警告
+
+    if (timeUntilExpiry > warningTime) {
+      const timer = setTimeout(() => {
+        setError('验证码即将过期，建议刷新验证码');
+      }, warningTime);
+
+      return () => clearTimeout(timer);
+    }
+  }, [captchaTimestamp, requiresCaptcha]);
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -199,38 +293,55 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         {/* 验证码输入 */}
         {requiresCaptcha && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              验证码
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                验证码
+              </label>
+              <div className="flex items-center gap-2">
+                {timeLeft && !isCaptchaExpired && (
+                  <span className={`text-xs font-medium ${
+                    timeLeft < 60000 ? 'text-red-600' : 
+                    timeLeft < 120000 ? 'text-orange-600' : 'text-gray-600'
+                  }`}>
+                    {Math.floor(timeLeft / 60000)}:{(Math.floor(timeLeft / 1000) % 60).toString().padStart(2, '0')}
+                  </span>
+                )}
+                {isCaptchaExpired && (
+                  <span className="text-xs text-red-600 font-medium">
+                    验证码已过期，请刷新
+                  </span>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <input
                 type="text"
                 value={captcha}
                 onChange={(e) => setCaptcha(e.target.value)}
-                placeholder="请输入验证码"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={isCaptchaExpired ? "验证码已过期，请点击刷新" : "请输入验证码"}
+                className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isCaptchaExpired ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
                 disabled={disabled || isLoading}
                 required
               />
               {captchaImage && (
-                <div className="flex-shrink-0">
+                <div className="flex flex-col gap-1">
                   <img
                     src={captchaImage}
                     alt="验证码"
-                    className="w-24 h-10 border border-gray-300 rounded cursor-pointer"
-                    onClick={() => {
-                      // 点击验证码图片可以刷新
-                      setRequiresCaptcha(false);
-                      setCaptcha('');
-                      setCaptchaImage('');
-                      setCaptchaUrl('');
-                      setCaptchaUuid('');
-                      setJsessionid('');
-                      setJaccountUrl('');
-                      setLoginContext(null);
-                    }}
+                    className="w-24 h-10 border border-gray-300 rounded cursor-pointer hover:border-blue-500 transition-colors"
+                    onClick={refreshCaptcha}
                     title="点击刷新验证码"
                   />
+                  <button
+                    type="button"
+                    onClick={refreshCaptcha}
+                    disabled={disabled || isLoading}
+                    className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400 transition-colors"
+                  >
+                    刷新
+                  </button>
                 </div>
               )}
             </div>
@@ -239,7 +350,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
 
         <button
           type="submit"
-          disabled={disabled || isLoading || !username.trim() || !password.trim() || (requiresCaptcha && !captcha.trim())}
+          disabled={disabled || isLoading || !username.trim() || !password.trim() || (requiresCaptcha && (!captcha.trim() || isCaptchaExpired))}
           className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isLoading ? (
@@ -250,7 +361,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
           ) : (
             <>
               <LogIn className="w-4 h-4" />
-              {requiresCaptcha ? '提交登录' : '获取验证码'}
+              {requiresCaptcha ? (isCaptchaExpired ? '请先刷新验证码' : '提交登录') : '获取验证码'}
             </>
           )}
         </button>

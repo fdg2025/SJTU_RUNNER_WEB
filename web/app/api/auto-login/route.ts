@@ -603,7 +603,7 @@ export async function PUT(request: NextRequest) {
       
       let currentUrl = redirectUrl;
       let redirectCount = 0;
-      const maxRedirects = 10;
+      const maxRedirects = 5; // Reduce max redirects to speed up
       let accumulatedCookies = '';
       let finalResponse;
       
@@ -704,6 +704,7 @@ export async function PUT(request: NextRequest) {
         if (redirectResponse.status === 302 || redirectResponse.status === 301) {
           const nextLocation = redirectResponse.headers.get('location');
           if (nextLocation) {
+            console.log(`[Auto-Login] Following redirect to: ${nextLocation}`);
             // Handle relative URLs
             if (nextLocation.startsWith('http')) {
               currentUrl = nextLocation;
@@ -719,6 +720,69 @@ export async function PUT(request: NextRequest) {
             redirectCount++;
           } else {
             console.log('[Auto-Login] No location header in redirect response');
+            break;
+          }
+        } else if (redirectResponse.status === 200) {
+          // Check if this is a login page that needs to be followed
+          // For JAccount login, we need to check if there's a redirect in the response body
+          try {
+            const responseText = await redirectResponse.text();
+            console.log('[Auto-Login] Response body length:', responseText.length);
+            
+            // Look for redirect patterns in the response body
+            const redirectPatterns = [
+              /window\.location\.href\s*=\s*['"]([^'"]+)['"]/,
+              /location\.href\s*=\s*['"]([^'"]+)['"]/,
+              /<meta[^>]*http-equiv=['"]refresh['"][^>]*content=['"]\d+;\s*url=([^'"]+)['"]/i,
+              /<script[^>]*>[\s\S]*?window\.location\s*=\s*['"]([^'"]+)['"]/i
+            ];
+            
+            for (const pattern of redirectPatterns) {
+              const match = responseText.match(pattern);
+              if (match && match[1]) {
+                let redirectUrl = match[1];
+                console.log(`[Auto-Login] Found redirect in response body: ${redirectUrl}`);
+                
+                // Handle relative URLs
+                if (!redirectUrl.startsWith('http')) {
+                  const urlObj = new URL(currentUrl);
+                  if (redirectUrl.startsWith('/')) {
+                    redirectUrl = `${urlObj.protocol}//${urlObj.host}${redirectUrl}`;
+                  } else {
+                    redirectUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}/${redirectUrl}`;
+                  }
+                }
+                
+                currentUrl = redirectUrl;
+                redirectCount++;
+                console.log(`[Auto-Login] Following redirect from response body: ${currentUrl}`);
+                break;
+              }
+            }
+            
+            // If no redirect found in body, check if we should continue to next step
+            if (!responseText.includes('window.location') && !responseText.includes('location.href')) {
+              console.log('[Auto-Login] No redirect found in response body, checking if we need to continue');
+              // For JAccount login page, we might need to continue to the next step
+              if (currentUrl.includes('jalogin') && redirectCount < maxRedirects) {
+                // Try to construct the next URL based on the login flow
+                const nextUrl = currentUrl.replace('/jalogin', '/authorize');
+                if (nextUrl !== currentUrl) {
+                  currentUrl = nextUrl;
+                  redirectCount++;
+                  console.log(`[Auto-Login] Constructing next URL: ${currentUrl}`);
+                } else {
+                  console.log('[Auto-Login] No more redirects needed');
+                  break;
+                }
+              } else {
+                console.log('[Auto-Login] No more redirects needed');
+                break;
+              }
+            }
+          } catch (error) {
+            console.log('[Auto-Login] Could not read response body:', error);
+            console.log('[Auto-Login] No more redirects needed');
             break;
           }
         } else {
@@ -744,11 +808,10 @@ export async function PUT(request: NextRequest) {
         console.log('[Auto-Login] Making final request to pe.sjtu.edu.cn/phone/ to get correct cookies');
         console.log('[Auto-Login] Current accumulatedCookies:', accumulatedCookies);
         
-        // Try multiple final URLs to ensure we get the correct cookies
+        // Try final URLs to get the correct cookies (prioritize most likely to succeed)
         const finalUrls = [
           'https://pe.sjtu.edu.cn/phone/',
-          'https://pe.sjtu.edu.cn/phone/#/indexPortrait',
-          'https://pe.sjtu.edu.cn/phone/#/'
+          'https://pe.sjtu.edu.cn/phone/#/indexPortrait'
         ];
         
         for (const finalUrl of finalUrls) {
@@ -905,9 +968,22 @@ export async function PUT(request: NextRequest) {
     } else {
       // Login failed
       console.log(`[Auto-Login] Login failed for user: ${username}, error: ${loginResult.error}`);
+      
+      // 检查是否是验证码相关错误
+      let errorMessage = loginResult.error || '登录失败，请检查用户名和密码';
+      if (loginResult.error && (
+        loginResult.error.includes('验证码') || 
+        loginResult.error.includes('captcha') ||
+        loginResult.error.includes('过期') ||
+        loginResult.error.includes('expired')
+      )) {
+        errorMessage = '验证码已过期或错误，请重新获取验证码';
+      }
+      
       return NextResponse.json({
         success: false,
-        error: loginResult.error || '登录失败，请检查用户名和密码'
+        error: errorMessage,
+        requiresNewCaptcha: true // 标记需要新的验证码
       }, { status: 401 });
     }
 
