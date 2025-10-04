@@ -1290,6 +1290,34 @@ export async function PUT(request: NextRequest) {
         console.log(`[Auto-Login] JSESSIONID: ${newJsessionid.substring(0, 20)}...`);
         console.log(`[Auto-Login] JSESSIONID format valid: ${isValidJsessionid}`);
         
+        // 验证JSESSIONID是否真的可用
+        console.log('[Auto-Login] 🔍 Verifying JSESSIONID usability...');
+        try {
+          const verificationResponse = await fetch('https://pe.sjtu.edu.cn/sports/my/user', {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Connection': 'keep-alive',
+              'Cookie': `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`,
+            },
+          });
+          
+          console.log('[Auto-Login] 🔍 JSESSIONID verification response status:', verificationResponse.status);
+          
+          if (verificationResponse.status === 200) {
+            console.log('[Auto-Login] ✅ JSESSIONID is working correctly!');
+          } else if (verificationResponse.status === 401 || verificationResponse.status === 403) {
+            console.log('[Auto-Login] ❌ JSESSIONID is not authorized or expired');
+          } else {
+            console.log('[Auto-Login] ⚠️ JSESSIONID verification returned unexpected status:', verificationResponse.status);
+          }
+        } catch (error) {
+          console.log('[Auto-Login] ⚠️ JSESSIONID verification failed:', error.message);
+        }
+        
         return NextResponse.json({
           success: true,
           cookie: finalCookie,
