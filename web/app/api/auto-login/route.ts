@@ -75,9 +75,28 @@ export async function POST(request: NextRequest) {
       console.log('[Auto-Login] No Set-Cookie header found');
     }
     
-    // The keepalive cookie is a fixed IP binding identifier, not a login status indicator
-    // Always proceed to JAccount flow to verify actual login status
-    console.log('[Auto-Login] keepalive cookie is IP binding identifier, proceeding to JAccount flow');
+    // Check if already logged in by looking for keepalive cookie
+    if (setCookieHeader && setCookieHeader.includes('keepalive') && jsessionid) {
+      const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+      const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
+      
+      if (keepalive) {
+        // Already logged in, return cookies directly
+        const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
+        console.log('[Auto-Login] Already logged in, returning cookies directly');
+        console.log(`[Auto-Login] keepalive: ${keepalive.substring(0, 20)}...`);
+        console.log(`[Auto-Login] JSESSIONID: ${jsessionid.substring(0, 20)}...`);
+        
+        return NextResponse.json({
+          success: true,
+          cookie: fullCookie,
+          message: '自动登录成功，Cookie已获取'
+        });
+      }
+    }
+    
+    // Not logged in, proceed to JAccount flow
+    console.log('[Auto-Login] Not logged in, proceeding to JAccount flow');
     
     // Check for JAccount redirect to verify actual login status
     if (phoneResponse.status === 302 || phoneResponse.status === 301) {
