@@ -950,6 +950,27 @@ export async function PUT(request: NextRequest) {
         if (targetJsessionidMatch) {
           newJsessionid = targetJsessionidMatch[1];
           console.log('[Auto-Login] Target page JSESSIONID:', newJsessionid);
+        } else {
+          // 如果目标页面没有返回JSESSIONID，检查是否在请求的Cookie中已经有JSESSIONID
+          console.log('[Auto-Login] 🔍 Target page did not return JSESSIONID, checking request cookies');
+          console.log('[Auto-Login] 🔍 Request cookies:', accumulatedCookies);
+          
+          const requestJsessionidMatch = accumulatedCookies.match(/JSESSIONID=([^;]+)/);
+          if (requestJsessionidMatch) {
+            const requestJsessionid = requestJsessionidMatch[1];
+            console.log('[Auto-Login] 🔍 Found JSESSIONID in request cookies:', requestJsessionid);
+            
+            // 检查是否是pe.sjtu.edu.cn格式（不包含.jaccount）
+            if (!requestJsessionid.includes('.jaccount')) {
+              console.log('[Auto-Login] ✅ Request JSESSIONID is pe.sjtu.edu.cn format:', requestJsessionid);
+              newJsessionid = requestJsessionid;
+              targetJsessionidMatch = requestJsessionidMatch;
+            } else {
+              console.log('[Auto-Login] ❌ Request JSESSIONID is JAccount format, ignoring:', requestJsessionid);
+            }
+          } else {
+            console.log('[Auto-Login] 🔍 No JSESSIONID found in request cookies');
+          }
         }
       }
       
@@ -1102,15 +1123,79 @@ export async function PUT(request: NextRequest) {
           newJsessionid = jsessionid;
           targetJsessionidMatch = ['JSESSIONID=' + jsessionid, jsessionid];
         } else {
-          throw new Error(`目标页面 https://pe.sjtu.edu.cn/phone/ 未返回pe.sjtu.edu.cn域名的JSESSIONID！
+          // 尝试访问其他可能返回pe.sjtu.edu.cn JSESSIONID的端点
+          console.log('[Auto-Login] 🔄 Target page did not return JSESSIONID, trying alternative endpoints for pe.sjtu.edu.cn JSESSIONID');
           
+          const alternativeUrls = [
+            'https://pe.sjtu.edu.cn/phone/user',  // 用户信息请求 - 最可能返回JSESSIONID
+            'https://pe.sjtu.edu.cn/phone/semesterTarget',  // 学期目标请求
+            'https://pe.sjtu.edu.cn/phone/getIsFirst',  // 首次登录检查
+            'https://pe.sjtu.edu.cn/phone/listOne',  // 列表请求
+            'https://pe.sjtu.edu.cn/phone/api/uid',
+            'https://pe.sjtu.edu.cn/sports/my/uid',
+            'https://pe.sjtu.edu.cn/sports/my/data',
+            'https://pe.sjtu.edu.cn/api/running/point-rule'
+          ];
+          
+          let foundPeJsessionid = false;
+          
+          for (const url of alternativeUrls) {
+            console.log(`[Auto-Login] 🔄 Trying alternative URL: ${url}`);
+            
+            const alternativeResponse = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Cookie': accumulatedCookies,
+              },
+              redirect: 'manual',
+            });
+            
+            console.log(`[Auto-Login] 🔄 Alternative URL response status: ${alternativeResponse.status}`);
+            
+            const alternativeSetCookie = alternativeResponse.headers.get('set-cookie');
+            if (alternativeSetCookie) {
+              console.log('[Auto-Login] 🔄 Alternative URL Set-Cookie:', alternativeSetCookie);
+              
+              // 查找非JAccount格式的JSESSIONID
+              const alternativeJsessionidMatch = alternativeSetCookie.match(/JSESSIONID=([^;,\s]+)/i);
+              if (alternativeJsessionidMatch) {
+                const candidateJsessionid = alternativeJsessionidMatch[1];
+                console.log('[Auto-Login] 🔄 Found JSESSIONID candidate:', candidateJsessionid);
+                
+                // 检查是否是pe.sjtu.edu.cn格式（不包含.jaccount）
+                if (!candidateJsessionid.includes('.jaccount')) {
+                  console.log('[Auto-Login] ✅ Found pe.sjtu.edu.cn JSESSIONID from:', url);
+                  console.log('[Auto-Login] ✅ JSESSIONID value:', candidateJsessionid);
+                  newJsessionid = candidateJsessionid;
+                  targetJsessionidMatch = alternativeJsessionidMatch;
+                  foundPeJsessionid = true;
+                  break;
+                } else {
+                  console.log('[Auto-Login] ❌ Rejected JAccount JSESSIONID from:', url);
+                }
+              }
+            }
+          }
+          
+          if (!foundPeJsessionid) {
+            throw new Error(`无法从任何端点获取pe.sjtu.edu.cn域名的JSESSIONID！
+            
 分析结果:
-- 目标页面: https://pe.sjtu.edu.cn/phone/
+- 目标页面: https://pe.sjtu.edu.cn/phone/ (未返回JSESSIONID)
+- 尝试的端点: ${alternativeUrls.join(', ')}
 - 期望域名: pe.sjtu.edu.cn
-- 实际响应: ${targetSetCookie || '无Set-Cookie头部'}
-- 当前JSESSIONID: ${jsessionid || '无'}
+- 当前JSESSIONID: ${jsessionid || '无'} (JAccount格式，已拒绝)
 
-请确保访问正确的目标页面以获取pe.sjtu.edu.cn域名的JSESSIONID。`);
+建议检查pe.sjtu.edu.cn系统的Cookie设置。`);
+          }
         }
       }
       
