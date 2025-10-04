@@ -74,24 +74,15 @@ export async function POST(request: NextRequest) {
     const isLoggedIn = setCookieHeader && setCookieHeader.includes('keepalive');
     
     if (isLoggedIn) {
-      console.log('[Auto-Login] Already logged in, extracting cookies');
-      
-      // Extract keepalive cookie
+      console.log('[Auto-Login] Found keepalive cookie, but forcing JAccount flow for testing');
+      // Force JAccount flow even if keepalive is present for testing purposes
+      // Extract keepalive cookie for fallback
       const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
       const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
       
       if (keepalive) {
-        const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
-        console.log('[Auto-Login] Successfully extracted cookies');
-        
-        return NextResponse.json({
-          success: true,
-          cookie: fullCookie,
-          message: '自动登录成功，Cookie已获取'
-        });
-      } else {
-        console.log('[Auto-Login] Found keepalive in header but failed to extract value');
-        // Continue to JAccount flow even if keepalive extraction failed
+        console.log('[Auto-Login] Keepalive found but proceeding to JAccount flow');
+        // Continue to JAccount flow to test captcha functionality
       }
     } else {
       console.log('[Auto-Login] No keepalive cookie found, proceeding to JAccount login flow');
