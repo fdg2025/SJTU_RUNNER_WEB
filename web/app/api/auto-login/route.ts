@@ -668,6 +668,12 @@ export async function PUT(request: NextRequest) {
       
       console.log(`[Auto-Login] Final response status: ${finalResponse.status}`);
       
+      // Log all response headers for debugging
+      console.log('[Auto-Login] Final response headers:');
+      finalResponse.headers.forEach((value, key) => {
+        console.log(`  ${key}: ${value}`);
+      });
+      
       const finalSetCookie = finalResponse.headers.get('set-cookie');
       if (finalSetCookie) {
         console.log('[Auto-Login] Final Set-Cookie:', finalSetCookie);
@@ -693,8 +699,28 @@ export async function PUT(request: NextRequest) {
             console.log('[Auto-Login] JSESSIONID is NOT in UUID format, this might be wrong');
           }
         }
+        
+        // Log all cookies found in the response
+        const allCookies = finalSetCookie.split(',').map(cookie => cookie.trim());
+        console.log('[Auto-Login] All cookies in final response:');
+        allCookies.forEach((cookie, index) => {
+          console.log(`  Cookie ${index + 1}: ${cookie}`);
+        });
       } else {
         console.log('[Auto-Login] No Set-Cookie header in final response');
+      }
+      
+      // Also log the response body to see if there are any clues
+      try {
+        const responseText = await finalResponse.text();
+        console.log('[Auto-Login] Final response body length:', responseText.length);
+        if (responseText.includes('JSESSIONID') || responseText.includes('keepalive')) {
+          console.log('[Auto-Login] Response body contains cookie-related content');
+          // Log a small portion of the response body
+          console.log('[Auto-Login] Response body sample:', responseText.substring(0, 500));
+        }
+      } catch (error) {
+        console.log('[Auto-Login] Could not read response body:', error);
       }
 
       // 调试信息
