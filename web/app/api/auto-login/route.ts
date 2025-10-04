@@ -598,6 +598,23 @@ export async function PUT(request: NextRequest) {
         console.log(`[Auto-Login] Final redirect to: ${finalLocation}`);
         
         // Always access the phone page to get the correct cookies
+        // Use the original keepalive cookie from initial request
+        let originalKeepalive = '';
+        if (setCookieHeader) {
+          const originalKeepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+          originalKeepalive = originalKeepaliveMatch ? originalKeepaliveMatch[1].replace(/^'|'$/g, '') : '';
+        }
+        
+        let cookieString = '';
+        if (originalKeepalive) {
+          cookieString = `keepalive='${originalKeepalive}`;
+        }
+        if (newJsessionid) {
+          cookieString += cookieString ? `; JSESSIONID=${newJsessionid}` : `JSESSIONID=${newJsessionid}`;
+        }
+        
+        console.log('[Auto-Login] Final request cookie:', cookieString);
+        
         const finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
           method: 'GET',
           headers: {
@@ -613,7 +630,7 @@ export async function PUT(request: NextRequest) {
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
-            'Cookie': `JSESSIONID=${newJsessionid}`,
+            'Cookie': cookieString,
           },
         });
 

@@ -119,9 +119,16 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         } else {
           setError(data.error || '自动登录失败');
           // 如果验证码错误，重新获取验证码
-          if (data.error && data.error.includes('验证码')) {
+          if (data.error && (data.error.includes('验证码') || data.error.includes('keepalive'))) {
             setRequiresCaptcha(false);
             setCaptcha('');
+            setCaptchaImage('');
+            setCaptchaUrl('');
+            setCaptchaUuid('');
+            setJsessionid('');
+            setJaccountUrl('');
+            setLoginContext(null);
+            setError('验证码已过期，请重新获取验证码');
           }
         }
       } else {
