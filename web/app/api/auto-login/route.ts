@@ -904,6 +904,8 @@ export async function PUT(request: NextRequest) {
       
       // 从目标页面获取最终的Cookie
       const targetSetCookie = targetPageResponse.headers.get('set-cookie');
+      let targetJsessionidMatch = null;
+      
       if (targetSetCookie) {
         console.log('[Auto-Login] Target page Set-Cookie:', targetSetCookie);
         
@@ -915,7 +917,7 @@ export async function PUT(request: NextRequest) {
         }
         
         // 提取JSESSIONID从目标页面响应
-        const targetJsessionidMatch = targetSetCookie.match(/JSESSIONID=([^;]+)/);
+        targetJsessionidMatch = targetSetCookie.match(/JSESSIONID=([^;]+)/);
         if (targetJsessionidMatch) {
           newJsessionid = targetJsessionidMatch[1];
           console.log('[Auto-Login] Target page JSESSIONID:', newJsessionid);
