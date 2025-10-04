@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
 
         // Extract login context from JAccount page (based on real browser test)
         // Look for the loginContext object in JavaScript
-        const loginContextMatch = jaccountHtml.match(/var loginContext = \{(.*?)\};/s);
+        const loginContextMatch = jaccountHtml.match(/var loginContext = \{[\s\S]*?\};/);
         let captchaUuid = '';
         let sid = '';
         let client = '';
