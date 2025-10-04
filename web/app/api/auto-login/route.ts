@@ -1315,7 +1315,7 @@ export async function PUT(request: NextRequest) {
             console.log('[Auto-Login] ⚠️ JSESSIONID verification returned unexpected status:', verificationResponse.status);
           }
         } catch (error) {
-          console.log('[Auto-Login] ⚠️ JSESSIONID verification failed:', error.message);
+          console.log('[Auto-Login] ⚠️ JSESSIONID verification failed:', error instanceof Error ? error.message : String(error));
         }
         
         return NextResponse.json({
