@@ -606,6 +606,13 @@ export async function PUT(request: NextRequest) {
         }
       }
 
+      // 调试信息
+      console.log('[Auto-Login] Cookie 提取结果:', {
+        keepalive: keepalive ? keepalive.substring(0, 20) + '...' : 'empty',
+        newJsessionid: newJsessionid ? newJsessionid.substring(0, 20) + '...' : 'empty',
+        redirectSetCookie: setCookieHeader ? setCookieHeader.substring(0, 100) + '...' : 'empty'
+      });
+
       if (keepalive && newJsessionid) {
         const finalCookie = `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`;
         console.log(`[Auto-Login] Successfully obtained cookie for user: ${username}`);
@@ -618,6 +625,10 @@ export async function PUT(request: NextRequest) {
           message: '自动登录成功，Cookie已获取'
         });
       } else {
+        console.log('[Auto-Login] Cookie 提取失败:', {
+          keepalive: !!keepalive,
+          newJsessionid: !!newJsessionid
+        });
         throw new Error('无法获取keepalive Cookie');
       }
     } else {
