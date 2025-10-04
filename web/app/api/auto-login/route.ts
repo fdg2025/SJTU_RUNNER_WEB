@@ -293,6 +293,21 @@ export async function POST(request: NextRequest) {
         if (jaccountResponse.ok) {
           const jaccountHtml = await jaccountResponse.text();
           console.log('[Auto-Login] Retrieved JAccount login page');
+          
+          // Extract JSESSIONID from JAccount response
+          const jaccountSetCookieHeader = jaccountResponse.headers.get('set-cookie');
+          if (jaccountSetCookieHeader) {
+            console.log('[Auto-Login] JAccount Set-Cookie header:', jaccountSetCookieHeader);
+            const jaccountJsessionidMatch = jaccountSetCookieHeader.match(/JSESSIONID=([^;]+)/);
+            if (jaccountJsessionidMatch) {
+              jsessionid = jaccountJsessionidMatch[1];
+              console.log(`[Auto-Login] Retrieved JAccount JSESSIONID: ${jsessionid.substring(0, 20)}...`);
+            } else {
+              console.log('[Auto-Login] No JSESSIONID found in JAccount Set-Cookie header');
+            }
+          } else {
+            console.log('[Auto-Login] No Set-Cookie header in JAccount response');
+          }
 
           // Extract login context from JAccount page
           const loginContextMatch = jaccountHtml.match(/var loginContext = \{[\s\S]*?\};/);
