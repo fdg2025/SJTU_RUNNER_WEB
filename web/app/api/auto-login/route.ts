@@ -77,8 +77,8 @@ export async function POST(request: NextRequest) {
       console.log('[Auto-Login] Already logged in, extracting cookies');
       
       // Extract keepalive cookie
-      const keepaliveMatch = setCookieHeader.match(/keepalive='([^']+)'/);
-      const keepalive = keepaliveMatch ? keepaliveMatch[1] : '';
+      const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+      const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
       
       if (keepalive) {
         const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
@@ -89,7 +89,12 @@ export async function POST(request: NextRequest) {
           cookie: fullCookie,
           message: '自动登录成功，Cookie已获取'
         });
+      } else {
+        console.log('[Auto-Login] Found keepalive in header but failed to extract value');
+        // Continue to JAccount flow even if keepalive extraction failed
       }
+    } else {
+      console.log('[Auto-Login] No keepalive cookie found, proceeding to JAccount login flow');
     }
     
     // If not logged in, check for JAccount redirect
@@ -125,23 +130,52 @@ export async function POST(request: NextRequest) {
         const jaccountHtml = await jaccountResponse.text();
         console.log('[Auto-Login] Retrieved JAccount login page');
 
-        // Extract login context from JAccount page (based on saved HTML analysis)
+        // Extract login context from JAccount page (based on real browser test)
         // Look for the loginContext object in JavaScript
-        const loginContextMatch = jaccountHtml.match(/var loginContext = \{[^}]*uuid:\s*"([a-f0-9-]+)"[^}]*\}/);
-        const uuidMatch = loginContextMatch ? loginContextMatch[1] : jaccountHtml.match(/uuid:\s*"([a-f0-9-]+)"/)?.[1];
+        const loginContextMatch = jaccountHtml.match(/var loginContext = \{(.*?)\};/s);
+        let captchaUuid = '';
+        let sid = '';
+        let client = '';
+        let returl = '';
+        let se = '';
+        let v = '';
         
-        const sidMatch = jaccountHtml.match(/sid:\s*"([^"]+)"/);
-        const clientMatch = jaccountHtml.match(/client:\s*"([^"]+)"/);
-        const returlMatch = jaccountHtml.match(/returl:\s*"([^"]+)"/);
-        const seMatch = jaccountHtml.match(/se:\s*"([^"]+)"/);
-        const vMatch = jaccountHtml.match(/v:\s*"([^"]*)"/);
+        if (loginContextMatch) {
+          const contextStr = loginContextMatch[1];
+          console.log('[Auto-Login] Found loginContext object');
+          
+          // Extract parameters from loginContext object
+          const uuidMatch = contextStr.match(/uuid:\s*"([^"]+)"/);
+          const sidMatch = contextStr.match(/sid:\s*"([^"]+)"/);
+          const clientMatch = contextStr.match(/client:\s*"([^"]+)"/);
+          const returlMatch = contextStr.match(/returl:\s*"([^"]+)"/);
+          const seMatch = contextStr.match(/se:\s*"([^"]+)"/);
+          const vMatch = contextStr.match(/v:\s*"([^"]*)"/);
+          
+          captchaUuid = uuidMatch ? uuidMatch[1] : '';
+          sid = sidMatch ? sidMatch[1] : '';
+          client = clientMatch ? clientMatch[1] : '';
+          returl = returlMatch ? returlMatch[1] : '';
+          se = seMatch ? seMatch[1] : '';
+          v = vMatch ? vMatch[1] : '';
+        } else {
+          console.log('[Auto-Login] loginContext object not found, trying alternative extraction');
+          // Fallback to individual parameter extraction
+          const uuidMatch = jaccountHtml.match(/uuid:\s*"([^"]+)"/);
+          const sidMatch = jaccountHtml.match(/sid:\s*"([^"]+)"/);
+          const clientMatch = jaccountHtml.match(/client:\s*"([^"]+)"/);
+          const returlMatch = jaccountHtml.match(/returl:\s*"([^"]+)"/);
+          const seMatch = jaccountHtml.match(/se:\s*"([^"]+)"/);
+          const vMatch = jaccountHtml.match(/v:\s*"([^"]*)"/);
+          
+          captchaUuid = uuidMatch ? uuidMatch[1] : '';
+          sid = sidMatch ? sidMatch[1] : '';
+          client = clientMatch ? clientMatch[1] : '';
+          returl = returlMatch ? returlMatch[1] : '';
+          se = seMatch ? seMatch[1] : '';
+          v = vMatch ? vMatch[1] : '';
+        }
         
-        const captchaUuid = uuidMatch || '';
-        const sid = sidMatch ? sidMatch[1] : '';
-        const client = clientMatch ? clientMatch[1] : '';
-        const returl = returlMatch ? returlMatch[1] : '';
-        const se = seMatch ? seMatch[1] : '';
-        const v = vMatch ? vMatch[1] : '';
         
         if (captchaUuid) {
           const timestamp = Date.now();
@@ -209,8 +243,8 @@ export async function POST(request: NextRequest) {
       console.log('[Auto-Login] No redirect detected, checking for existing session');
       
       if (setCookieHeader) {
-        const keepaliveMatch = setCookieHeader.match(/keepalive='([^']+)'/);
-        const keepalive = keepaliveMatch ? keepaliveMatch[1] : '';
+        const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
+        const keepalive = keepaliveMatch ? keepaliveMatch[1].replace(/^'|'$/g, '') : '';
         
         if (keepalive) {
           const fullCookie = `keepalive='${keepalive}; JSESSIONID=${jsessionid}`;
@@ -348,9 +382,9 @@ export async function PUT(request: NextRequest) {
 
       if (setCookieHeader) {
         // Extract keepalive cookie
-        const keepaliveMatch = setCookieHeader.match(/keepalive='([^']+)'/);
+        const keepaliveMatch = setCookieHeader.match(/keepalive=([^;]+)/);
         if (keepaliveMatch) {
-          keepalive = keepaliveMatch[1];
+          keepalive = keepaliveMatch[1].replace(/^'|'$/g, '');
         }
 
         // Extract new JSESSIONID if present
@@ -386,9 +420,9 @@ export async function PUT(request: NextRequest) {
 
         const finalSetCookie = finalResponse.headers.get('set-cookie');
         if (finalSetCookie) {
-          const finalKeepaliveMatch = finalSetCookie.match(/keepalive='([^']+)'/);
+          const finalKeepaliveMatch = finalSetCookie.match(/keepalive=([^;]+)/);
           if (finalKeepaliveMatch) {
-            keepalive = finalKeepaliveMatch[1];
+            keepalive = finalKeepaliveMatch[1].replace(/^'|'$/g, '');
           }
         }
       }
