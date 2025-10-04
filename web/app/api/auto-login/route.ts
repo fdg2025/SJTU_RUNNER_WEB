@@ -689,13 +689,12 @@ export async function PUT(request: NextRequest) {
             newJsessionid = redirectJsessionidMatch[1];
             console.log('[Auto-Login] Redirect JSESSIONID:', newJsessionid);
             
-            // Check if JSESSIONID is in UUID format
-            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (uuidPattern.test(newJsessionid)) {
-              console.log('[Auto-Login] JSESSIONID is in correct UUID format - SUCCESS!');
-              break; // We found the correct UUID format JSESSIONID
+            // Check if JSESSIONID is valid (JAccount format is acceptable)
+            if (newJsessionid && newJsessionid.length > 10) {
+              console.log('[Auto-Login] JSESSIONID is in valid format - SUCCESS!');
+              break; // We found a valid JSESSIONID
             } else {
-              console.log('[Auto-Login] JSESSIONID is NOT in UUID format, continuing...');
+              console.log('[Auto-Login] JSESSIONID format is invalid, continuing...');
             }
           }
         }
@@ -795,16 +794,16 @@ export async function PUT(request: NextRequest) {
         console.log('[Auto-Login] Maximum redirects reached');
       }
       
-      // If we didn't get UUID format JSESSIONID, make one more request to the final URL
-      const hasUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid);
-      console.log('[Auto-Login] UUID format check:', {
+      // If we didn't get valid JSESSIONID, make one more request to the final URL
+      const hasValidFormat = newJsessionid && newJsessionid.length > 10;
+      console.log('[Auto-Login] Format check:', {
         hasKeepalive: !!keepalive,
         hasJsessionid: !!newJsessionid,
-        isUuidFormat: hasUuidFormat,
+        isValidFormat: hasValidFormat,
         jsessionidValue: newJsessionid
       });
       
-      if (!hasUuidFormat) {
+      if (!hasValidFormat) {
         console.log('[Auto-Login] Making final request to pe.sjtu.edu.cn/phone/ to get correct cookies');
         console.log('[Auto-Login] Current accumulatedCookies:', accumulatedCookies);
         
@@ -858,13 +857,12 @@ export async function PUT(request: NextRequest) {
               newJsessionid = finalJsessionidMatch[1];
               console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
               
-              // Check if this is the UUID format we want
-              const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-              if (uuidPattern.test(newJsessionid)) {
-                console.log('[Auto-Login] Found UUID format JSESSIONID in final request - SUCCESS!');
-                break; // We found the correct format, stop trying other URLs
+              // Check if this is a valid format
+              if (newJsessionid && newJsessionid.length > 10) {
+                console.log('[Auto-Login] Found valid JSESSIONID in final request - SUCCESS!');
+                break; // We found a valid format, stop trying other URLs
               } else {
-                console.log('[Auto-Login] JSESSIONID is still not UUID format, trying next URL...');
+                console.log('[Auto-Login] JSESSIONID is still not valid format, trying next URL...');
               }
             }
           }
@@ -901,12 +899,11 @@ export async function PUT(request: NextRequest) {
           newJsessionid = finalJsessionidMatch[1];
           console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
           
-          // Check if JSESSIONID is in UUID format
-          const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (uuidPattern.test(newJsessionid)) {
-            console.log('[Auto-Login] JSESSIONID is in correct UUID format');
+          // Check if JSESSIONID is in valid format
+          if (newJsessionid && newJsessionid.length > 10) {
+            console.log('[Auto-Login] JSESSIONID is in valid format');
           } else {
-            console.log('[Auto-Login] JSESSIONID is NOT in UUID format, this might be wrong');
+            console.log('[Auto-Login] JSESSIONID is NOT in valid format, this might be wrong');
           }
         }
         
@@ -940,15 +937,15 @@ export async function PUT(request: NextRequest) {
         finalResponseStatus: finalResponse ? finalResponse.status : 'undefined'
       });
 
-      // Check if we have the correct UUID format JSESSIONID
-      const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid);
+      // Check if we have valid cookies (JSESSIONID can be in various formats)
+      const isValidJsessionid = newJsessionid && newJsessionid.length > 10; // JAccount JSESSIONID is typically longer
       
-      if (keepalive && newJsessionid && isUuidFormat) {
+      if (keepalive && newJsessionid && isValidJsessionid) {
         const finalCookie = `keepalive='${keepalive}; JSESSIONID=${newJsessionid}`;
         console.log(`[Auto-Login] Successfully obtained correct cookie for user: ${username}`);
         console.log(`[Auto-Login] keepalive: ${keepalive.substring(0, 20)}...`);
         console.log(`[Auto-Login] JSESSIONID: ${newJsessionid.substring(0, 20)}...`);
-        console.log(`[Auto-Login] JSESSIONID is UUID format: ${isUuidFormat}`);
+        console.log(`[Auto-Login] JSESSIONID format valid: ${isValidJsessionid}`);
         
         return NextResponse.json({
           success: true,
@@ -959,11 +956,11 @@ export async function PUT(request: NextRequest) {
         console.log('[Auto-Login] Cookie 提取失败或格式不正确:', {
           hasKeepalive: !!keepalive,
           hasJsessionid: !!newJsessionid,
-          isUuidFormat: isUuidFormat,
+          isValidFormat: isValidJsessionid,
           jsessionidValue: newJsessionid
         });
         
-        throw new Error(`Cookie格式不正确: keepalive=${!!keepalive}, JSESSIONID=${!!newJsessionid}, UUID格式=${isUuidFormat}`);
+        throw new Error(`Cookie格式不正确: keepalive=${!!keepalive}, JSESSIONID=${!!newJsessionid}, 格式有效=${isValidJsessionid}`);
       }
     } else {
       // Login failed

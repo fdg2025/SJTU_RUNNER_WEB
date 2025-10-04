@@ -105,6 +105,15 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         });
 
         const data = await response.json();
+        
+        // 调试日志
+        console.log('[Frontend] Auto login response:', {
+          status: response.status,
+          success: data.success,
+          hasCookie: !!data.cookie,
+          error: data.error,
+          message: data.message
+        });
 
         if (data.success && data.cookie) {
           setSuccess('自动登录成功！Cookie已自动填充');
@@ -123,7 +132,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         } else {
           setError(data.error || '自动登录失败');
           // 如果验证码错误，重新获取验证码
-          if (data.error && (data.error.includes('验证码') || data.error.includes('keepalive')) || data.requiresNewCaptcha) {
+          if ((data.error && (data.error.includes('验证码') || data.error.includes('keepalive'))) || data.requiresNewCaptcha) {
             setRequiresCaptcha(false);
             setCaptcha('');
             setCaptchaImage('');
@@ -140,7 +149,12 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
         setError('请输入验证码');
       }
     } catch (error) {
-      console.error('Auto login error:', error);
+      console.error('[Frontend] Auto login error:', error);
+      console.error('[Frontend] Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       setError(error instanceof Error ? error.message : '自动登录过程中发生错误');
     } finally {
       setIsLoading(false);
