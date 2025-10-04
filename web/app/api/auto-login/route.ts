@@ -270,7 +270,8 @@ export async function POST(request: NextRequest) {
       
       // Try to access the JAccount login page directly
       try {
-        const jaccountUrl = 'https://jaccount.sjtu.edu.cn/jaccount/jalogin?sid=jaoauth220160718&client=test&returl=test&se=test';
+        // Use the real JAccount login URL from the phone page redirect
+        const jaccountUrl = 'https://jaccount.sjtu.edu.cn/jaccount/jalogin?sid=jaoauth220160718&client=CN0jz%2FkocIey765dzMbV5erSBBqwiHGWn4qALMErOi5s&returl=COtE5UW1etjDJLkXEkaoRzaW5zZhBiuLHAG9nEzlTVCwSzii6eIJixvQ5yWgZ81%2FCXUMQOFhLS4OZk4%2FCFAepOUJbgjnKnccVLjy9%2FSutOhwMnIyUTfWSauQz3N4pRWQgIPPe8LJ7%2Btk&se=CF8ADlaoySZJ79UPzxGi9tZHFTZ9uVSRvluTmEV5WrXvJ7bb4IPtTWKtI%2FAbYOq48lLXFtDHHHlP';
         const jaccountResponse = await fetch(jaccountUrl, {
           method: 'GET',
           headers: {
@@ -298,7 +299,7 @@ export async function POST(request: NextRequest) {
           let v = '';
           
           if (loginContextMatch) {
-            const contextStr = loginContextMatch[1];
+            const contextStr = loginContextMatch[0];
             console.log('[Auto-Login] Found loginContext object');
             
             // Extract parameters from loginContext object
