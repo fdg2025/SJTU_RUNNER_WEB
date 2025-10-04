@@ -524,8 +524,15 @@ export async function PUT(request: NextRequest) {
     if (loginResult.errno === 0 && loginResult.url) {
       console.log(`[Auto-Login] Login successful, redirecting to: ${loginResult.url}`);
       
+      // Construct full URL if relative
+      let redirectUrl = loginResult.url;
+      if (redirectUrl.startsWith('/')) {
+        redirectUrl = 'https://jaccount.sjtu.edu.cn' + redirectUrl;
+      }
+      console.log(`[Auto-Login] Full redirect URL: ${redirectUrl}`);
+      
       // Follow redirect to get cookies
-      const redirectResponse = await fetch(loginResult.url, {
+      const redirectResponse = await fetch(redirectUrl, {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
