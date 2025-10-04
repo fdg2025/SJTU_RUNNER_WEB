@@ -932,7 +932,9 @@ export async function PUT(request: NextRequest) {
         const additionalUrls = [
           'https://pe.sjtu.edu.cn/phone/',
           'https://pe.sjtu.edu.cn/phone/api/uid',
-          'https://pe.sjtu.edu.cn/sports/my/uid'
+          'https://pe.sjtu.edu.cn/sports/my/uid',
+          'https://pe.sjtu.edu.cn/sports/my/data', // 尝试这个端点
+          'https://pe.sjtu.edu.cn/api/running/point-rule' // 尝试这个端点
         ];
         
         // 同时尝试不同的Cookie组合
@@ -971,11 +973,41 @@ export async function PUT(request: NextRequest) {
               // 检查是否有JSESSIONID
               const additionalJsessionidMatch = additionalSetCookie.match(/JSESSIONID=([^;]+)/);
               if (additionalJsessionidMatch) {
-                newJsessionid = additionalJsessionidMatch[1];
-                console.log('[Auto-Login] Found JSESSIONID from additional URL:', newJsessionid);
-                break; // 找到JSESSIONID就停止
+                const candidateJsessionid = additionalJsessionidMatch[1];
+                console.log('[Auto-Login] Found JSESSIONID candidate from additional URL:', candidateJsessionid);
+                
+                // 检查JSESSIONID格式 - 优先选择UUID格式的JSESSIONID
+                const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                const isUuidFormat = uuidPattern.test(candidateJsessionid);
+                const isJaccountFormat = candidateJsessionid.includes('.jaccount');
+                
+                console.log('[Auto-Login] JSESSIONID format analysis:', {
+                  value: candidateJsessionid,
+                  isUuidFormat: isUuidFormat,
+                  isJaccountFormat: isJaccountFormat
+                });
+                
+                // 优先选择UUID格式的JSESSIONID
+                if (isUuidFormat) {
+                  newJsessionid = candidateJsessionid;
+                  console.log('[Auto-Login] Using UUID format JSESSIONID:', newJsessionid);
+                  break; // 找到UUID格式的JSESSIONID就停止
+                } else if (!isJaccountFormat && !newJsessionid.includes('.jaccount')) {
+                  // 如果不是JAccount格式且当前也不是JAccount格式，则使用这个
+                  newJsessionid = candidateJsessionid;
+                  console.log('[Auto-Login] Using non-JAccount format JSESSIONID:', newJsessionid);
+                } else if (isJaccountFormat && newJsessionid.includes('.jaccount')) {
+                  // 如果都是JAccount格式，选择较新的
+                  newJsessionid = candidateJsessionid;
+                  console.log('[Auto-Login] Using JAccount format JSESSIONID:', newJsessionid);
+                }
               }
             }
+          }
+          // 如果找到了UUID格式的JSESSIONID，立即停止所有搜索
+          if (newJsessionid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newJsessionid)) {
+            console.log('[Auto-Login] Found UUID format JSESSIONID, stopping search:', newJsessionid);
+            break;
           }
           if (newJsessionid !== jsessionid) {
             break; // 如果找到了新的JSESSIONID就停止
