@@ -573,12 +573,13 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // Follow final redirect to phone page to get keepalive
+      // Follow final redirect to phone page to get keepalive and correct JSESSIONID
       if (redirectResponse.status === 302 || redirectResponse.status === 301) {
         const finalLocation = redirectResponse.headers.get('location');
         console.log(`[Auto-Login] Final redirect to: ${finalLocation}`);
         
-        const finalResponse = await fetch(finalLocation || 'https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
+        // Always access the phone page to get the correct cookies
+        const finalResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
           method: 'GET',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -599,9 +600,20 @@ export async function PUT(request: NextRequest) {
 
         const finalSetCookie = finalResponse.headers.get('set-cookie');
         if (finalSetCookie) {
+          console.log('[Auto-Login] Final page Set-Cookie:', finalSetCookie);
+          
+          // Extract keepalive cookie
           const finalKeepaliveMatch = finalSetCookie.match(/keepalive=([^;]+)/);
           if (finalKeepaliveMatch) {
             keepalive = finalKeepaliveMatch[1].replace(/^'|'$/g, '');
+            console.log('[Auto-Login] Final keepalive:', keepalive.substring(0, 20) + '...');
+          }
+          
+          // Extract correct JSESSIONID (UUID format)
+          const finalJsessionidMatch = finalSetCookie.match(/JSESSIONID=([^;]+)/);
+          if (finalJsessionidMatch) {
+            newJsessionid = finalJsessionidMatch[1];
+            console.log('[Auto-Login] Final JSESSIONID:', newJsessionid);
           }
         }
       }
