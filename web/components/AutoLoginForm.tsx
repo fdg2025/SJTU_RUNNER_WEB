@@ -195,7 +195,7 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
   };
 
   // 检查验证码是否过期（5分钟）
-  const isCaptchaExpired = captchaTimestamp && (Date.now() - captchaTimestamp > 5 * 60 * 1000);
+  const isCaptchaExpired = captchaTimestamp ? (Date.now() - captchaTimestamp > 5 * 60 * 1000) : false;
 
   // 验证码倒计时
   useEffect(() => {
