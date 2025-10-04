@@ -408,7 +408,28 @@ export async function PUT(request: NextRequest) {
 
     const { username, password, captcha, captchaUuid, jsessionid, jaccountUrl, loginContext } = await request.json();
     
+    // 调试信息
+    console.log('[Auto-Login PUT] 接收到的参数:', {
+      username: username ? '***' : 'empty',
+      password: password ? '***' : 'empty',
+      captcha: captcha ? '***' : 'empty',
+      captchaUuid: captchaUuid ? captchaUuid.substring(0, 8) + '...' : 'empty',
+      jsessionid: jsessionid ? jsessionid.substring(0, 8) + '...' : 'empty',
+      jaccountUrl: jaccountUrl ? 'exists' : 'empty',
+      loginContext: loginContext ? 'exists' : 'empty'
+    });
+    
     if (!username || !password || !captcha || !captchaUuid || !jsessionid || !jaccountUrl || !loginContext) {
+      console.log('[Auto-Login PUT] 参数验证失败:', {
+        username: !!username,
+        password: !!password,
+        captcha: !!captcha,
+        captchaUuid: !!captchaUuid,
+        jsessionid: !!jsessionid,
+        jaccountUrl: !!jaccountUrl,
+        loginContext: !!loginContext
+      });
+      
       return NextResponse.json({
         success: false,
         error: '用户名、密码、验证码、验证码UUID、会话ID、JAccount URL和登录上下文不能为空'

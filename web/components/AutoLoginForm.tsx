@@ -73,6 +73,17 @@ export default function AutoLoginForm({ onCookieObtained, disabled }: AutoLoginF
 
       // 如果有验证码，提交登录
       if (requiresCaptcha && captcha.trim()) {
+        // 调试信息
+        console.log('提交登录参数:', {
+          username,
+          password: password ? '***' : 'empty',
+          captcha,
+          captchaUuid,
+          jsessionid,
+          jaccountUrl,
+          loginContext
+        });
+        
         const response = await fetch('/api/auto-login', {
           method: 'PUT',
           headers: {
