@@ -809,8 +809,8 @@ export async function PUT(request: NextRequest) {
         
         // Try final URLs to get the correct cookies (prioritize most likely to succeed)
         const finalUrls = [
-          'https://pe.sjtu.edu.cn/phone/',
-          'https://pe.sjtu.edu.cn/phone/#/indexPortrait'
+          'https://pe.sjtu.edu.cn/phone/#/indexPortrait', // 优先使用正确的目标页面
+          'https://pe.sjtu.edu.cn/phone/'
         ];
         
         for (const finalUrl of finalUrls) {
@@ -875,6 +875,53 @@ export async function PUT(request: NextRequest) {
       }
       
       console.log(`[Auto-Login] Final response status: ${finalResponse.status}`);
+      
+      // 无论前面的重定向结果如何，都要访问正确的目标页面获取最终Cookie
+      console.log('[Auto-Login] Making final request to correct target page: https://pe.sjtu.edu.cn/phone/#/indexPortrait');
+      const targetPageResponse = await fetch('https://pe.sjtu.edu.cn/phone/#/indexPortrait', {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'cross-site',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Cookie': accumulatedCookies,
+        },
+        redirect: 'manual',
+      });
+      
+      console.log(`[Auto-Login] Target page response status: ${targetPageResponse.status}`);
+      
+      // 从目标页面获取最终的Cookie
+      const targetSetCookie = targetPageResponse.headers.get('set-cookie');
+      if (targetSetCookie) {
+        console.log('[Auto-Login] Target page Set-Cookie:', targetSetCookie);
+        
+        // 提取keepalive从目标页面响应
+        const targetKeepaliveMatch = targetSetCookie.match(/keepalive=([^;]+)/);
+        if (targetKeepaliveMatch) {
+          keepalive = targetKeepaliveMatch[1].replace(/^'|'$/g, '');
+          console.log('[Auto-Login] Target page keepalive:', keepalive.substring(0, 20) + '...');
+        }
+        
+        // 提取JSESSIONID从目标页面响应
+        const targetJsessionidMatch = targetSetCookie.match(/JSESSIONID=([^;]+)/);
+        if (targetJsessionidMatch) {
+          newJsessionid = targetJsessionidMatch[1];
+          console.log('[Auto-Login] Target page JSESSIONID:', newJsessionid);
+        }
+      }
+      
+      // 使用目标页面的响应作为最终响应
+      finalResponse = targetPageResponse;
       
       // Log all response headers for debugging
       console.log('[Auto-Login] Final response headers:');
