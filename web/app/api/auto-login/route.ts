@@ -63,11 +63,16 @@ export async function POST(request: NextRequest) {
     const setCookieHeader = phoneResponse.headers.get('set-cookie');
     let jsessionid = '';
     if (setCookieHeader) {
+      console.log('[Auto-Login] Set-Cookie header:', setCookieHeader);
       const jsessionidMatch = setCookieHeader.match(/JSESSIONID=([^;]+)/);
       if (jsessionidMatch) {
         jsessionid = jsessionidMatch[1];
         console.log(`[Auto-Login] Retrieved JSESSIONID: ${jsessionid.substring(0, 20)}...`);
+      } else {
+        console.log('[Auto-Login] No JSESSIONID found in Set-Cookie header');
       }
+    } else {
+      console.log('[Auto-Login] No Set-Cookie header found');
     }
     
     // The keepalive cookie is a fixed IP binding identifier, not a login status indicator
